@@ -667,11 +667,7 @@ Module a_b_example.
   Definition automata_from_ex3 := powerset_construction.dfa example3.
   Definition automata_from_example_3 := powerset_construction.dfa a_b_from_loose.
   Check automata_from_example_3.
-  (*interessante: Sabemos que o estado final é dado por uma ocorrência de None no acumulador. Isso quer*)
-  (*dizer que, enquanto houver um none no acumulador, o autômato está em um estado final. *)
-  (*Na verdade, fold_left não explode na execução, ele simplesmente não encontra um valor *)
-  (*válido pra aplicar a função e retorna vazio para o acumulador. Desse ponto em diante, como a carroça         *)
-  (*desandou, ele não encotnra mais nada válido para aplicar, atinge o fim da palavra e retorna [] *)
+  
   Definition dec := dfa.run2 automata_from_ex3 [a; b;c;d].
   Eval compute in (filterMap id dec).
   (*teste para o caso [a;b;e;c;d] e veja *)

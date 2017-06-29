@@ -7,11 +7,20 @@ Require Import Bool.
 (*deixa a inferência de tipos máxima no Coq, não sendo necessário declarar o tipo das vari *)
 (*áveis em chamadas de função, por exemplo:https://coq.inria.fr/cocorico/CoqNewbieQuestions*)
 Set Implicit Arguments.
+(*inserção máxima de argumentos implícitos: o Coq vai tentar inferir ao máximo os tipos dos argumentos *)
 Set Maximal Implicit Insertion.
+
 
 (* First, some library helper functions and notations. *)
 (* https://coq.inria.fr/distrib/current/refman/Reference-Manual023.html#hevea_command261/ *)
+(*Instance: cria uma instância da classe EqDec (ou seja, uma instância de relação de igual- *)
+(* dade para o tipo option A                                                          *)
+(*Program: fornece uma forma de escrever programas de linguagens funcionais no Coq, usando o *)
+(*aparato que o Coq possui para construir esse programa de forma certificada (correta *)
+(*eq :relação de igualdade, uma proposição indutiva que dá a ideia de igualdade entre 2 ele- *)
+(*mentos de um mesmo tipo, presente em Coq.Init.Logic                           *)
 Obligation Tactic := unfold complement, equiv ; program_simpl.
+(*tática usada para lidar com obligations criadas em relação a igualdade *)
 Program Instance option_eqdec A `(EqDec A eq) : EqDec (option A) eq :=
 {
   equiv_dec x y :=
@@ -24,6 +33,7 @@ Program Instance option_eqdec A `(EqDec A eq) : EqDec (option A) eq :=
 
 (*função que aplica a função, filtrando os resultados numa lista resultante da aplicação *)
 (*fica na lista quem a função pôde ser aplicada: mapeia para depois filtrar *)
+(*útil na extração do tipo dentro de option tipo. *)
 Definition filterMap {A B} (f : A -> option B) : list A -> list B :=
   fix rec (l : list A) : list B :=
     match l with
@@ -33,6 +43,7 @@ Definition filterMap {A B} (f : A -> option B) : list A -> list B :=
                | Some y => y :: rec l
                end
     end.
+
 (*função que pega uma lista de "option A" e retorna um tipo option de list A*)
 (*onde a estrutura indutiva é em cima do tipo A de entrada, denotado pelo {A} *)
 Fixpoint list_option_traverse {A} (l : list (option A)) : option (list A) :=
@@ -70,16 +81,17 @@ Module rhs.
   (*dessa forma, não é necessário explicitar o tipo que tais construtores recebem toda vez que forem invocados*)
   Arguments Empty {_} {_}.
   Arguments Single {_} {_} _.
+  Arguments Continue {_} {_} _ _.
   (*função que verifica que uma regra é vazia, dados os terminal, não terminal e a regra de derivação.*)
   Definition isEmpty (T NT : Type) (rhs : rhs.t T NT) : bool :=
     match rhs with
     | Empty => true
     | _ => false
     end.
-   Lemma isEmpty_sound  :forall NT T, forall r:rhs.t T NT, isEmpty r = false \/ isEmpty r = true.
+   (*Lemma isEmpty_sound  :forall NT T, forall r:rhs.t T NT, isEmpty r = false \/ isEmpty r = true.
    intros.
    destruct isEmpty;auto.
-   Qed.
+   Qed.*)
 
   Module exports.
     Notation Empty := Empty.
@@ -96,10 +108,19 @@ Module reg_grammar.
     (*graças à isso, é possível usar a noção de igualdade aqui dentro para variáveis do *)
     (*tipo T e NT *)
 
-  Record t : Type:= {
+  Record g : Type:= {
       start_symbol: NT;
       rules : list(NT * rhs.t T NT)
   }.
+
+  Definition build_grammar (nt: NT) rules: g :={|
+      start_symbol := nt;
+      rules := rules |}.
+  (*Lemma build_grammar_sound : forall nt, forall rules, build_grammar nt rules = {|
+      start_symbol := nt;
+      rules := rules |}.
+  Proof.
+  intros. unfold build_grammar. reflexivity. Qed.*)
 
   (* Next, we're going to write a function [parse] that decides whether a string
      is in the language represented by the grammar. The parser keeps track of
@@ -119,36 +140,75 @@ Module reg_grammar.
     | Single t' => if t == t' then [None] else []
     | Continue t' nt => if t == t' then [Some nt] else []
     end.
-
   (*isso aqui realmente serve para algo? *)
-  (*forall n: isso deveria ser forall ou exists na condição onde ele é usado?*)
-  Lemma step_rhs_sound : forall t:T, forall rhs: rhs.t T NT,forall nt: NT, step_rhs t rhs = [] \/
-  step_rhs t rhs = [None] \/ step_rhs t rhs = [Some nt].
-  intros t rhs nt.
+  (*forall n: isso deveria ser forall ou exists na condição onde ele é usado? R: EXISTS!!!*)
+  (* O lema abaixo diz que, pra qualquer terminal e o lado direito de uma regra de derivação, ou não existe uma possí- *)
+  (* vel derivação,ou existe uma derivação que para no estado atual (Single) ou é possível ir para um outro estado a partir*)
+  (* do lado direito dado na entrada                                                                                *)
+  (*Lemma step_rhs_sound : forall t:T, forall rhs: rhs.t T NT, step_rhs t rhs = [] \/
+  step_rhs t rhs = [None] \/ (exists nt, step_rhs t rhs = [Some nt]).
+  Proof.
+  intros t rhs.
   destruct rhs; auto.
   simpl. destruct equiv_dec. auto.
   auto.
-  simpl. destruct equiv_dec eqn:I;auto. (*tô perto; tenho que forçar t === t0.*)
-  assert (n = nt).
-  Abort.
+  simpl. destruct equiv_dec eqn:I;auto. 
+  right. right. exists (n). reflexivity.
+  Qed. *)
  
   (* Finds all the productions for a given nonterminal. *)
+  (*Note: this list will never be empty, if the nt symbol belongs to the grammar         *)
   Definition getRHS T NT `{EqDec NT eq}
            (nt : NT) : list (NT * rhs.t T NT) ->
                        list (rhs.t T NT) :=
     filterMap (fun rule => let '(nt', rhs) := rule in
                         if nt == nt' then Some rhs else None).
+  (*essa função que eu não tô sabendo manipular *)
+  Lemma getRHS_sound : forall nt, forall rules, getRHS nt rules = [] \/
+  (exists rule:rhs.t T NT,In (rule) (getRHS nt rules)).
+  Proof.
+  intros. induction rules0.
+  - left. unfold getRHS. reflexivity.
+  - right. exists (snd a). simpl. Abort.
+
 
   (* Given a nonterminal [nt], applies all possible rules. *)
+  (*aplica step_rhs na lista de regras obtida em getRHS nt *)
   Definition step_nt (rules : list(NT * rhs.t T NT)) (t : T) (nt : NT) : list (option NT) :=
     rules |> getRHS nt  |> flat_map (step_rhs t).
-  
+  (*Lemma step_nt_sound : forall rules,forall t, forall nt, step_nt rules t nt =  [] \/
+  In None (step_nt rules t nt)  \/ (exists n:NT, In (Some n) (step_nt rules t nt)).
+  Proof.
+  intros.
+  destruct step_nt.
+  - left. reflexivity.
+  - destruct o. right. right. simpl. exists n. left. reflexivity.
+    right. left. simpl. left. reflexivity. Qed. *)
+
+
   (* Given a *list* of nonterminals, takes all possible next steps. *)
+  (*map: retorna 1 valor para cada aplicação da função por elemento da lista *)
+  (*flat_map: retorna 0 ou mais valores para cada aplicação da função por elemento da lista*)
   Definition step (rules : list(NT * rhs.t T NT)) (t : T) (acc : list NT) : list (option NT) :=
-    acc |> flat_map (step_nt rules t)|> nodup equiv_dec.
+  (*nodup: sem passos que possam ser duplicados. equiv_dec é a relação de equivalência *)
+  (* entre os tipos de caracteres não terminais (que estarão em acc), necessário para nodup*)
+  (*verificar se os elementos já se encontram na lista ou não *)
+  acc |> flat_map (step_nt rules t) |> nodup equiv_dec.
+
+  Definition step_sound: forall rules, forall t, forall acc, step rules t acc = [] \/
+  In (None) (step rules t acc) \/ (exists nt:NT, In (Some nt)(step rules t acc)).
+  Proof.
+  intros.
+  destruct step.
+  - left. reflexivity.
+  - destruct o. right. right. exists n. simpl. left. reflexivity.
+    right. left. simpl. left. reflexivity.
+  Qed.
 
   (* The main parser loop. Repeatedly steps the current set of states using
      terminals from the string. *)
+  (*Definition parse (grammar : reg_grammar.g) (l : list T): bool :=
+    [Some (start_symbol grammar)] |> parse' (rules grammar) l |> is_final (rules grammar).*)
   Definition parse' (rules : list(NT * rhs.t T NT))
            : list T -> list (option NT) -> list (option NT) :=
     fix rec l acc :=
@@ -160,6 +220,16 @@ Module reg_grammar.
             |> step rules t
             |> rec l
       end.
+
+  Definition parse'_sound: forall rules, forall lt, forall lnt, parse' rules lt lnt = [] 
+  \/ In (None) (parse' rules lt lnt) \/ (exists nt:NT, In (Some nt) (parse' rules lt lnt)).
+  Proof.
+  intros.
+  destruct parse'.
+  - left. reflexivity.
+  - destruct o. right. right. exists n. simpl. left. reflexivity.
+    right. left. simpl. left. reflexivity.
+  Qed.
 
   Lemma parse'_app_nil : forall g l acc, acc |> parse' g (l ++ []) = acc |> parse' g l \/ acc |> parse' g ([]++ l) = acc |> parse' g l.
   Proof.
@@ -177,87 +247,142 @@ Module reg_grammar.
       acc |> parse' g l1 |> parse' g l2.
   Proof.
     induction l1; simpl; auto.
-  Qed.  
+  Qed.
 
   (* Checks to see if the current state represents an accepting state.  In this
      representataion of state, a state is accepting if it contains [None] or if
      it contains [Some nt] and there is a rule [(nt, Empty)].  *)
   Definition is_final (rules : list (NT * rhs.t T NT)) (l : list (option NT)) : bool :=
-  (*existsb: exists booleano *)
+  (*existsb: exists booleano, verifica se uma condição pode ser satisfeita por algum *)
+  (*elemento da lista. Presente m Coq.Lists. O o é um elemento da lista de regras da entrada. *)
     existsb (fun o => match o with
                    | None => true
                    | Some nt => getRHS nt rules |> existsb rhs.isEmpty
                    end)
             l.
-  Lemma is_final_sound : forall r l, is_final r l = true \/ is_final r l = false.
+  (*Lemma is_final_sound : forall r l,  is_final r l = true \/ is_final r l = false.
  Proof.
     intros r l.
     destruct is_final;auto.
-  Qed.
+  Qed.*)
 
   (* Top-level parse function. Calls [parse'] with the initial symbol and checks
      to see whether the resulting state is accepting. *)
-  Definition parse (grammar : reg_grammar.t) (l : list T): bool :=
+  Definition parse (grammar : reg_grammar.g) (l : list T): bool :=
     [Some (start_symbol grammar)] |> parse' (rules grammar) l |> is_final (rules grammar).
   (*importante notar que a função parse retorna verdadeiro se a palavra de entrada *)
   (* é derivável do conjunto de regras da gramática. O que seria a corretude dessa função?*)
   (* creio que só isso abaixo não serve para nada.                                       *)
-  Lemma parse_companion : forall grammar, forall l, parse grammar l = true \/ parse grammar l = false.
+  (*Lemma parse_companion : forall grammar, forall l, parse grammar l = true \/ parse grammar l = false.
   Proof.
   intros.
   destruct parse;auto.
-  Qed.
-  Lemma parse_sound : forall grammar, forall l,forall acc, parse grammar l = true -> parse' [] = acc.
-  Admitted.  
+  Qed.*)
+
+  (*Definition string_belongs_to_the_grammar(g:reg_grammar.g)(l:list non_terminal) :Prop := forall l, forall acc: list (option NT),
+  exists nt, (parse' (rules grammar) l acc) = nt /\ In None nt.*)
+
+  Definition nt_is_final (g:reg_grammar.g) (lnt: list (option NT)) : Prop :=
+  is_final (rules g) lnt = true.
+
+  (*Lemma parse_sound: forall grammar, forall l,
+  parse grammar l = true -> exists nt, nt_is_final grammar nt /\ string_belongs_to_the_grammar.
+  intros.
+  destruct grammar.
+  unfold nt_is_final. simpl. unfold is_final. destruct is_final. destruct H1;assumption. Abort.
+*)
+
+
   (*o parser estar correto quer dizer que se ele retorna true, então está num estado final *)
   (*Lemma parse_sound: forall grammar, forall l, forall lnt, parse grammar l = true -> 
   (is_final (rules grammar) lnt) = true /\ lnt = parse' l (rules grammar).*)
 
-(*função que faz o parser em cima da lista de regras e passa para uma fórmula válida de uma*)
-(*gramática regular *)
-  Definition rhs_from_lose (l : list (NT + T)) : option (rhs.t T NT) :=
+  (*função que faz o parser em cima da lista de regras e passa para uma fórmula válida de uma*)
+  (*gramática regular *)
+  Definition rhs_from_loose (l : list (NT + T)) : option (rhs.t T NT) :=
     match l with
     | [] => Some Empty
     | [inr t] => Some (Single t)
     | [inr t; inl A] => Some (Continue t A)
     | _ => None
     end.
-  Lemma rhs_from_lose_sound : forall l,forall t,forall A, rhs_from_lose l = Some Empty \/ 
-  rhs_from_lose l = Some (Single t) \/ rhs_from_lose l = Some (Continue t A) \/
-  rhs_from_lose l = None.
-  intros l t A.
-  destruct l. simpl. auto. Abort.
+
+  Lemma rhs_from_loose_sound : forall l, (rhs_from_loose l = Some Empty) \/ 
+  (exists t, rhs_from_loose l = Some (Single t)) \/ 
+  (exists t, exists A, rhs_from_loose l = Some (Continue t A)) \/
+  (rhs_from_loose l = None).
+  Proof.
+  intros.
+  destruct l.
+  - simpl. auto.
+  - destruct rhs_from_loose. destruct t.
+    + left. reflexivity.
+    + right. left. exists t. reflexivity.
+    + right. right. left. exists t. exists n. reflexivity.
+    + right. right. right. reflexivity.
+  Qed.
 
 
 (*função que lê uma lista de caracteres terminais e não terminais, assim como a nossa forma *)
-(*inicial de expressar a gramática *)
+(*inicial de expressar a gramática. Note que a leitura deve começar com um não terminal. *)
   Definition rule_from_loose (l : list (NT + T)) : option (NT * rhs.t T NT) :=
     match l with
     | inl A :: rhs =>
-      match rhs_from_lose rhs with
+      match rhs_from_loose rhs with
       | None => None
       | Some rhs => Some (A, rhs)
       end
     | _ => None
     end.
-  (*essa função faz o mesmo que a de cima, mas para a lista das listas. *)
+  Lemma rule_from_loose_sound : forall l, rule_from_loose l = None \/ 
+  exists rhs,exists A, rule_from_loose l = Some (A,rhs).
+  Proof.
+  intros.
+  destruct rule_from_loose.
+  - destruct p. right. exists t. exists n. reflexivity.
+  - left. reflexivity.
+  Qed.
+
+  (*essa função faz o mesmo que a de cima, mas para a lista das listas com as regras. *)
   Definition rules_from_loose (l : list (list (NT + T))) : option (list (NT * rhs.t T NT)) :=
     l |> map rule_from_loose |> list_option_traverse.
+  Lemma rules_from_loose_sound : forall l, rules_from_loose l = None \/
+  exists list, rules_from_loose l = Some list.
+  Proof.
+  intros.
+  destruct rules_from_loose.
+  - right. exists l0. reflexivity.
+  - left. reflexivity.
+  Qed.
+
   (*essa função gera a gramática, baseada na conversão da lista de regras solta dada como *)
   (*entrada, a gramatática gerada vem com as regras já convertidas para gramática regular. *)
-  Definition from_loose (start : NT) (l : list (list (NT + T))) : option t :=
+  Definition from_loose (start : NT) (l : list (list (NT + T))) : option g :=
     match rules_from_loose l with
     | None => None
     | Some rs => Some {| start_symbol := start;
                         rules := rs |}
     end.
 
+  Lemma from_loose_sound : forall start, forall l, from_loose start l = None \/ 
+  exists rs, from_loose start l = Some {| start_symbol := start;
+                        rules := rs |}.
+  Proof.
+  intros.
+  unfold from_loose. destruct l.
+  - destruct rules_from_loose. right. exists (l). reflexivity.
+    left. reflexivity.
+  - destruct rules_from_loose. right.  exists (l1). reflexivity.
+    left. reflexivity.
+  Qed.
+
   End reg_grammar.
 End reg_grammar.
 
 Module dfa.
   Section dfa.
-    (* Definição manual do autômato                                                       *)
+    (* Definição manual do autômato. Provar a corretude aqui vai ser difícil, pois a entrada *)
+    (* nessa seção é puramente manual.                                                       *)
     Variable (S A : Type).
     Record t := DFA {
       initial_state : S;
@@ -276,29 +401,12 @@ Module dfa.
     Definition run2 (m :t) (l : list A) : S :=
       run' (next m) l  (initial_state m).
     (*isso ajuda em algo?*)
-    Lemma run_companion : forall m:t, forall l, run m l = true \/ run m l = false.
+    (*Lemma run_companion : forall m:t, forall l, run m l = true \/ run m l = false.
     Proof.
     intros.
-    destruct run.
-    auto.
-    info_eauto.
-    Qed.
-    (*A prova de que a função que percorre uma palavra e diz se ela pertence à linguagem *)
-    (*pode ser pensada como sendo: após percorrer toda a palavra,estamos em um estado final *)
-    (* da linguagem que o autômato reconhece                                         *)
-    (*ou poderíamos, em função do parser da gramática, ver que o parser reconhece a mesma *)
-    (*linguagem de um automato, dado que os 2 tenham as mesmas "regras" de transição   *)
-    (*Definition run_sound : forall m:t, forall l, forall s:S, 
-    run m l = true <-> is_final m s = true.*)
-    (*Definition run_sound : forall m:t, forall l, forall s:S,*)
-    (*run m l = true -> is_final m s = true.*)
-    (*ou seja, a varredura do automato da palavra de entrada tem que chegar no mesmo valor do*)
-    (*caso ele seja final ou nao: final -> aceita, c.c. não aceita                   *)
-    (*2ª tentativa : eu tô com um problema maroto pra formalizar isso aqui*)
-    (*o resultado de run m l é igual ao de is_final m s: se um é falso, o outro tem que ser.*)
-    (*3ª tentativa: Definition run_sound : forall m:t, forall l,forall step,
-    run m l = true ->(exists s:S, s = run' step l s /\ is_final m s = true).*)
-
+    destruct run;auto.
+    Qed.*)
+  End dfa.
 End dfa.
 
 (* We can explicitly construct a DFA corresponding to the grammar. In fact, all
@@ -308,19 +416,30 @@ Module powerset_construction.
     Variable T NT : Type.
     Context `{EqDec T eq} `{EqDec NT eq}.
     (*uma gramática regular válida segue as regras de t, com T sendo terminal e NT não terminal. *)
-    Variable g : reg_grammar.t T NT.
+    Variable g : reg_grammar.g T NT.
     Definition state : Type := list (option NT).
     (* o estado inicial a gente retira da gramática *)
     Definition init : state := [Some (reg_grammar.start_symbol g)].
     (*os estados finais também, seguindo a ideia explícita em reg_grammar.is_final *)
     Definition is_final (s : state) : bool :=
       reg_grammar.is_final (reg_grammar.rules g) s.
-
     Definition next (s : state) (t : T) : state :=
       reg_grammar.step (reg_grammar.rules g) t (filterMap id s).
     (*função que chama o construtor de um DFA do módulo DFA, após ter convertido as regras para*)
-    (*formato de regras válidas                                                           *)
+    (*formato de regras válidas                                                          *)
     Definition dfa := dfa.DFA init is_final next.
+
+    (* faltando algo abaixo? ver melhor isso aqui.                                 *)
+    (*Definition state_is_accepting (s:state): Prop := forall s, is_final s = true. *)
+
+    (*a dfa should only accept words that are within its language, in other words *)
+    (*if a dfa accepts a word, it should be in a final state                      *)
+   (*Lemma dfa_from_grammar_sound :  forall s, forall l, dfa.run dfa l = true 
+    <-> state_is_accepting s.
+    Proof.
+    intros.
+    split.
+    - intros;induction l. unfold state_is_accepting. destruct is_final. Abort.*)
 
     (* Because of the way we carefully set this up, simulation holds
        *definitionally*, which is pretty cool. *)
@@ -330,6 +449,7 @@ Module powerset_construction.
     Proof.
       reflexivity.
     Qed.
+
   End powerset_construction.
 End powerset_construction.
 
@@ -375,7 +495,7 @@ Module a_b_example.
      (non_terminal.B, Continue terminal.b non_terminal.B);
      (non_terminal.B, Empty)].
 
-  Definition a_b_grammar : reg_grammar.t terminal.t non_terminal.t :=
+  Definition a_b_grammar : reg_grammar.g terminal.t non_terminal.t :=
     {| reg_grammar.start_symbol := non_terminal.A;
        reg_grammar.rules := a_b_rules |}.
 
@@ -419,6 +539,7 @@ Module a_b_example.
   (* Examples running the DFA. *)
   Eval compute in dfa.run a_b_dfa [].
   Eval compute in dfa.run a_b_dfa [terminal.a].
+  Eval compute in dfa.run a_b_dfa [terminal.b].
   Eval compute in dfa.run a_b_dfa [terminal.a; terminal.a].
   Eval compute in dfa.run a_b_dfa [terminal.b; terminal.b].
   Eval compute in dfa.run a_b_dfa [terminal.a; terminal.b].
@@ -448,18 +569,18 @@ Module a_b_example.
      [inl non_terminal.B; inr terminal.b; inl non_terminal.B];
      [inl non_terminal.B]].
 
-  Inductive non_terminal1 := S| S1 | S2 | S3.
+  Inductive non_terminal1 := S| S1 | S2 | S3 |S4.
   Inductive terminal1 := a | b |c | d | e.
   (*S => estado de entrada do autômato. Só se passa por ele 1x. *)
   Definition loose_rules_2 : list (list(non_terminal1 + terminal1)) :=
   [[inl S;inr a;inl S1];[inl S1;inr b;inl S2];[inl S2;inr c;inl S3];[inl S3;inr d];
   [inl S3;inr d;inl S3]; [inl S3; inr a; inl S1]].
   (*alternativamente, as regras externas podem ter essa representação *)
-  Definition loose_rules_3: list (non_terminal1 * rhs.t terminal1 non_terminal1) :=
+  Definition rules_3: list (non_terminal1 * rhs.t terminal1 non_terminal1) :=
   [(S, Continue a S1);
      (S1, Continue b S2);
      (S2, Continue c S3);
-     (S3, Single d)].
+     (S3, Single d);(S3, Continue d S3);(S3, Single a)].
 
   (* We can see that it gets converted to the "tight" representation given
      above. *)
@@ -495,8 +616,9 @@ Module a_b_example.
           | S1, S1 => in_left
           | S2, S2 => in_left
           | S3, S3 => in_left
+          | S4, S4 => in_left
           | S, S1|S1,S| S, S2 | S2, S | S, S3 | S3, S | S1, S2 | S2, S1 | S1, S3 | S3, S1 
-          | S2, S3 | S3, S2 => in_right
+          | S2, S3 | S3, S2| S4, S | S4, S1 | S4, S2 | S4, S3| S,S4 |S1, S4| S2, S4| S3,S4 => in_right
           end
       }.
     Program Instance eqdec2 : EqDec terminal1 eq :=
@@ -513,6 +635,32 @@ Module a_b_example.
       }.
 
 
+  Definition das := reg_grammar.build_grammar S rules_3.
+  Definition automata_example := powerset_construction.dfa das.
+  Check automata_example.
+  Eval compute in dfa.run2 automata_example [a;b;c;d].
+  Eval compute in dfa.run automata_example [a;b;c;d].
+
+
+  Definition rules_example_2:list(non_terminal1 * rhs.t terminal1 non_terminal1) :=
+  [(S,Continue a S1);(S,Continue b S2);(S1, Continue a S1);(S1,Continue c S3);(S2,Continue b S2);
+  (S2, Continue d S4);(S3, Single c);(S3,Continue c S);
+  (S4, Single d);(S4,Continue d S)].
+  Eval compute in reg_grammar.getRHS S4 rules_3.
+  
+  Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2.
+  Definition automata_example_2 := powerset_construction.dfa grammar_example_2.
+  Eval compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
+  Eval compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
+  Eval compute in dfa.run automata_example_2 [a;c;c]. (*returns true*)
+  Eval compute in dfa.run automata_example_2 [a;c;c;a]. (*returns false*)
+  Eval compute in dfa.run automata_example_2 [b;d;d;a;c;c]. (*returns true*)
+  Eval compute in dfa.run automata_example_2 [b;b;b;b;b;b;b;d;d;a;c;c]. (*returns true*)
+  Eval compute in dfa.run automata_example_2 [b;d;d;a;c;c;b;d;d;b;d;d]. (*returns true*)
+  Eval compute in dfa.run automata_example_2 [a;a;a;a;a;a;a;c;c]. (*returns true *)
+  Eval compute in dfa.run automata_example_2 [b;a;d;a;c;c].  (*returns false*)
+  
+
   Definition a_b_from_loose := ltac:(grab_option (reg_grammar.from_loose non_terminal.A a_b_loose_rules)).
   Definition automata_from_loose := powerset_construction.dfa a_b_from_loose.
   Definition example3 := ltac:(grab_option (new_grammar)).
@@ -524,14 +672,16 @@ Module a_b_example.
   (*Na verdade, fold_left não explode na execução, ele simplesmente não encontra um valor *)
   (*válido pra aplicar a função e retorna vazio para o acumulador. Desse ponto em diante, como a carroça         *)
   (*desandou, ele não encotnra mais nada válido para aplicar, atinge o fim da palavra e retorna [] *)
-  Definition dec := dfa.run2 automata_from_ex3 [a; b;c].
+  Definition dec := dfa.run2 automata_from_ex3 [a; b;c;d].
+  Eval compute in (filterMap id dec).
   (*teste para o caso [a;b;e;c;d] e veja *)
-  Definition dec2 := dfa.run2 automata_from_ex3 [a;b;c;d;d;d;d;d;d;d;d;d;d;a;b;c;d].
+  Definition dec2 := dfa.run2 automata_from_ex3 [a;b;c;d;d;d;d;d;d].
   Definition dec3 := dfa.run automata_from_ex3 [a; b;c].
-  Definition dec4 := dfa.run automata_from_ex3 [a;b;c;d;d;d;d;d;d;d;d;d;d;a;b;c;d].
+  Definition dec4 := dfa.run automata_from_ex3 [a;b;c;d;d;d;d;d;d].
   Eval compute in dec.
   Eval compute in dec2.
   Eval compute in dec3.
   Eval compute in dec4.
 
 End a_b_example.
+

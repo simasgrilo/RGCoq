@@ -40,6 +40,14 @@ Section reg_grammar_lemmas.
   right. right. exists (n). reflexivity.
   Qed.
 
+  (**)
+  Lemma getRHS_sound : forall nt, forall rules, reg_grammar.getRHS nt rules = [] \/
+  (exists rule:rhs.t T NT,In (rule) (reg_grammar.getRHS nt rules)).
+  Proof.
+  intros. induction rules.
+  - left. unfold reg_grammar.getRHS. reflexivity.
+  - right. exists (snd a). simpl. Abort.
+
   (*The following lemma states the soundness of the step_nt function. *)
   Lemma step_nt_sound : forall rules,forall t, forall nt, reg_grammar.step_nt rules t nt =  [] \/
   In None (reg_grammar.step_nt rules t nt)  \/ (exists n:NT, In (Some n) (reg_grammar.step_nt rules t nt)).
@@ -102,7 +110,6 @@ Section reg_grammar_lemmas.
   Qed.
 
   (*The following lemmas states properties about the soundness of the grammar parser *)
-  (*falta coisa*)
   Lemma parse_companion : forall grammar, forall l, reg_grammar.parse grammar l = true \/ 
   reg_grammar.parse grammar l = false.
   Proof.

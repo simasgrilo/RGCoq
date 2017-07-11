@@ -50,20 +50,6 @@ Definition filterMap {A B} (f : A -> option B) : list A -> list B :=
     end.
 
 
-Fixpoint list_option_traverse {A} (l : list (option A)) : option (list A) :=
-  match l with
-  | [] => Some []
-  | x :: l =>
-    match x with
-    | None => None
-    | Some a =>
-      match list_option_traverse l with
-      | None => None
-      | Some l => Some (a :: l)
-      end
-    end
-  end.
-
 Notation "x |> f" := (f x) (left associativity, at level 69, only parsing).
 
 (* A type representing valid right-hand sides of left-regular grammar rules.
@@ -141,7 +127,7 @@ Module reg_grammar.
 
   (* Finds all the productions for a given nonterminal. *)
   (*Note: this list will never be empty, if the nt symbol belongs to the grammar   *)
-  Definition getRHS T NT `{EqDec NT eq}
+  Definition getRHS `{EqDec NT eq}
            (nt : NT) : list (NT * rhs.t T NT) ->
                        list (rhs.t T NT) :=
     filterMap (fun rule => let '(nt', rhs) := rule in
@@ -156,7 +142,8 @@ Module reg_grammar.
 
   (* Given a *list* of nonterminals, takes all possible next steps. *)
   (*map: returns 1 value for each application of the function for each element of the list. *)
-  (*flat_map: retorna 0 ou mais valores para cada aplicação da função por elemento da lista *)
+  (*flat_map: returns 0 or more values for each application of the function in each list element.*)
+  (*if applyable *)
   Definition step (rules : list(NT * rhs.t T NT)) (t : T) (acc : list NT) : list (option NT) :=
   acc |> flat_map (step_nt rules t) |> nodup equiv_dec.
 
@@ -175,34 +162,6 @@ Module reg_grammar.
             |> step rules t
             |> rec l
       end.
-
-  Definition parse'_sound: forall rules, forall lt, forall lnt, parse' rules lt lnt = [] 
-  \/ In (None) (parse' rules lt lnt) \/ (exists nt:NT, In (Some nt) (parse' rules lt lnt)).
-  Proof.
-  intros.
-  destruct parse'.
-  - left. reflexivity.
-  - destruct o. right. right. exists n. simpl. left. reflexivity.
-    right. left. simpl. left. reflexivity.
-  Qed.
-
-  Lemma parse'_app_nil : forall g l acc, acc |> parse' g (l ++ []) = acc |> parse' g l \/ acc |> parse' g ([]++ l) = acc |> parse' g l.
-  Proof.
-  induction l; simpl;auto.
-  Qed.
-  Lemma parse'_nil :
-    forall g l ,
-      reg_grammar.parse' g l [] = [].
-  Proof.
-    induction l; simpl; auto.
-  Qed.
-  Lemma parse'_app :
-    forall g l1 l2 acc,
-      acc |> parse' g (l1 ++ l2) =
-      acc |> parse' g l1 |> parse' g l2.
-  Proof.
-    induction l1; simpl; auto.
-  Qed.
 
   (* Checks to see if the current state represents an accepting state.  In this
      representataion of state, a state is accepting if it contains [None] or if
@@ -261,7 +220,7 @@ Module powerset_construction.
     Definition state : Type := list (option NT).
     (* The automata's inital state is the same as the start symbol of the grammar.           *)
     Definition init : state := [Some (reg_grammar.start_symbol g)].
-    (*os estados finais também, seguindo a ideia explícita em reg_grammar.is_final *)
+    (*The same goes to a final state in the automata. *)
     Definition is_final (s : state) : bool :=
       reg_grammar.is_final (reg_grammar.rules g) s.
     Definition next (s : state) (t : T) : state :=
@@ -444,9 +403,10 @@ Module examples.
   (S2, Continue d S4);(S3, Single c);(S3,Continue c S);
   (S4, Single d);(S4,Continue d S)].
 
-  
+  Eval compute in reg_grammar.getRHS S rules_example_2.
   Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2.
   Definition automata_example_2 := powerset_construction.dfa grammar_example_2.
+
   Eval compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
   Eval compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
   Eval compute in dfa.run automata_example_2 [a;c;c]. (*returns true*)

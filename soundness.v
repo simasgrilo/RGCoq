@@ -51,14 +51,15 @@ Section reg_grammar_lemmas.
   right. right. exists (n). reflexivity.
   Qed.
 
-  (**)
+  (*hold on:*)
   Lemma getRHS_sound : forall nt, forall rules, reg_grammar.getRHS nt rules = [] \/
   (exists r:rhs.t T NT,exists a: (NT * rhs.t T NT),In (r) (reg_grammar.getRHS nt rules)
   /\ r = snd a /\ fst a = nt).
   Proof.
   intros. destruct rules.
   - left. simpl. reflexivity.
-  - right. exists (snd p). exists p. simpl. case p. 
+  - right. exists (snd p). exists p. split.
+    + simpl. case p. intros. destruct equiv_dec. simpl. left. reflexivity.
      Abort.
 
   (*The following lemma states the soundness of the step_nt function. *)
@@ -122,6 +123,19 @@ Section reg_grammar_lemmas.
     destruct reg_grammar.is_final;auto.
   Qed.
 
+  (*As defined by is_final's behaviour, it should return true iff there is a None *)
+  (* in the list of nonterminal symbols, meaning it reached a valid rule which is from the *)
+  (* kind A -> "a" or A -> e, "a" being a terminal character and e means the empty string char. *)
+  Lemma is_final_true : forall r:list (NT * rhs.t T NT),forall a:list (option NT), exists l,
+  reg_grammar.is_final r l = true <-> In (None) l.
+  Proof.
+  intros.
+  exists (None::a).
+  split.
+  - intros. simpl. left. reflexivity. 
+  - intros. simpl. reflexivity.
+  Qed.
+
 
   (*The following lemmas states properties about the soundness of the grammar parser *)
   Lemma parse_companion : forall grammar, forall l, reg_grammar.parse grammar l = true \/ 
@@ -163,18 +177,18 @@ Section dfa_lemmas.
     destruct dfa.run;auto.
     Qed.
 
-
-
-(*
-  Lemma run_soundness :  forall l, 
+  (* The following lemma asserts that a run in a list of terminal symbols with a automata *)
+  (* shall return true iff there is an final state that is reachable from the initial state.*)
+  Lemma run_soundness :forall grammar:reg_grammar.g T NT,forall l:list T, exists final,
   dfa.run (powerset_construction.dfa g) l = true 
-  <-> exists final, dfa.is_final (powerset_construction.dfa g) final = true.
+  <-> dfa.is_final (powerset_construction.dfa g) final = true.
   Proof.
   intros.
+  exists (dfa.run' (dfa.next (powerset_construction.dfa g))
+  l  (dfa.initial_state (powerset_construction.dfa g ))).
   split.
-  - intros. simpl. inversion H1.  rewrite H3. unfold powerset_construction.is_final.
-    unfold reg_grammar.is_final.  simpl. Abort. *)
-
-
+  - intros. rewrite <- H1. simpl. simpl in H1.  reflexivity. 
+  - intros. rewrite <- H1. reflexivity.
+  Qed.
 
 End dfa_lemmas.

@@ -60,6 +60,7 @@ Module rhs.
   (*RHS: Right Hand Side: How right linear regular grammar should behave:its rules should*)
   (*be A -> a, A -> a B or A -> e, where A and B denotes nonterminal symbols and a denotes.*)
   (* a terminal symbol.                                                                   *)
+  Variable T NT : Type.
   Inductive t T NT :=
   | Empty : t T NT
   | Single : T -> t T NT
@@ -116,8 +117,8 @@ Module reg_grammar.
      backwards up to here. *)
 
   (* Given the RHS of a rule and a terminal, decides whether the RHS can be used. *)
-  (*essa função pega a parte direita de uma regra de derivação e vê se possui derivações à*)
-  (*partir dela                                                                    *)
+  (* In others words, given a RHS of a rule and a terminal symbol, it checks how, if it *)
+  (* can be used, the RHS will be used.                                            *)
   Definition step_rhs (t : T) (rhs : rhs.t T NT) : list (option NT) :=
     match rhs with
     | Empty => []
@@ -345,14 +346,6 @@ Module examples.
   Eval compute in dfa.run a_b_dfa' [terminal.a; terminal.b;terminal.a].
   Eval compute in dfa.run a_b_dfa' [terminal.b; terminal.a].
 
-
-
-  Definition a_b_loose_rules: list(list(non_terminal.t + terminal.t)) :=
-    [[inl non_terminal.A; inr terminal.a; inl non_terminal.A];
-     [inl non_terminal.A; inr terminal.b; inl non_terminal.B];
-     [inl non_terminal.A];
-     [inl non_terminal.B; inr terminal.b; inl non_terminal.B];
-     [inl non_terminal.B]].
 
   Inductive non_terminal1 := S| S1 | S2 | S3 |S4.
   Inductive terminal1 := a | b |c | d.

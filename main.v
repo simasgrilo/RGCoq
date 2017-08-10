@@ -409,14 +409,14 @@ Module powerset_construction.
       | a::t => [Some ((fst a))] ++ list_state t 
       end |> nodup equiv_dec.
 
-    (* Definition dfa := dfa.DFA (init) (is_final) (next). *)
+    Definition dfa := dfa.DFA (init) (is_final) (next). 
 
     (*This checks whether the grammar's rules are deterministic. *)
     (* To use the above definition, one shall make a call to the grab_option function *)
-    (* It doesn't make sense forcing the type of the automata be a option T *)
+    (* It doesn't make sense forcing the type of the automata be a option t *)
     Definition build_dfa := 
     if (reg_grammar.get_nondeterminism (reg_grammar.rules g) (reg_grammar.rules g) == false) 
-    then Some (dfa.DFA (init) (is_final) (next)) else None.
+    then Some dfa else None.
 
 
   End powerset_construction.
@@ -442,8 +442,8 @@ Module powerset_construction_nfa.
   Definition next (acc: state) (t: T) : state :=
     acc |> filterMap id |> reg_grammar.step (reg_grammar.rules g) t.
 
-  (* Definition nfa := nfa.NFA init is_final next. *)
 
+  Definition nfa := nfa.NFA init is_final next. 
 
   (* This function builds a valid nfa iff the list of rules from the grammar is "nondeterministic" *)
   (*However, it suffers from the same issue presented in the DFA regarding the option type. *)

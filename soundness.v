@@ -7,14 +7,6 @@ Import ListNotations.
 
 (*Note: compile main.v before running this .v file *)
 
-(* the same ltac tactic to get the value from the option type in the DFA and the NFA built *)
-(* from a valid grammar.                                                                   *)
-
-Ltac grab_option x :=
-    match x with
-    | Some ?v => exact v
-    end.
-
 (* Lemmas about functions within the rhs module          *)
 Section rhs_lemmas.
 (*the following lemma states that isEmpty won't return a value different from false or true *)
@@ -167,7 +159,7 @@ Section reg_grammar_lemmas.
   Qed.
 
   (*The following lemma state that the is_final function may always return true or false*)
-  Lemma is_final_sound : forall r:list (NT * rhs.t T NT),forall l:list (option NT), reg_grammar.is_final r l = true \/ 
+  Lemma is_final_check : forall r:list (NT * rhs.t T NT),forall l:list (option NT), reg_grammar.is_final r l = true \/ 
   reg_grammar.is_final r l = false.
  Proof.
     intros r l.
@@ -198,7 +190,8 @@ Section reg_grammar_lemmas.
     + destruct H1 as [left | right]. destruct a. inversion left. inversion left. rewrite H1. reflexivity.
     (*stuck*) *)
 
-  (*As defined by is_final's behaviour, it should return true if there is a None *)
+  (* The "is_final" function should return true if it is verifying a final state. *)
+  (*As defined by is_final's behaviour, it should return true if there is a None  *)
   (* in the list of nonterminal symbols, meaning it reached a valid rule which is from the *)
   (* kind A -> "a" or A -> e, "a" being a terminal character and e means the empty string char. *)
   Lemma is_final_true : forall g:reg_grammar.g T NT, forall l: list (option NT),
@@ -299,14 +292,16 @@ Section reg_grammar_lemmas.
   (*
   Lemma get_nondeterminism_true : forall rules, reg_grammar.get_nondeterminism rules rules
   = true <-> (exists r:(NT * rhs.t T NT),
-  (reg_grammar.get_all_t rules (fst r) |> reg_grammar.count (reg_grammar.get_t_from_rhs(snd r))) >= 2).
+  (In r rules) /\ 
+ (reg_grammar.get_all_t rules (fst r) |> reg_grammar.count (reg_grammar.get_t_from_rhs(snd r))) >= 2).
   Proof.
   intros.
   split.
-  - intros. destruct rules. inversion H1. exists p. inversion H1.
-  (* maybe it will be needed a indutcive proposition *)
-  *)
-
+  - intros. destruct rules. inversion H1. exists p. split.
+    + simpl. auto.
+    + inversion H1.
+ (* maybe it will be needed a indutcive proposition *)
+  Admitted. *)
 
 End reg_grammar_lemmas.
 
@@ -394,16 +389,18 @@ Section dfa_lemmas.
   (* Then, we can conclude that both the parser for a given grammar and the automata built from *)
   (* the same grammar does the same work. This is possible thanks to the way the automata's     *)
   (* behaviour is defined from a grammar.                                                       *)
-
-  (* ops
-  Lemma dfa_and_parser : forall l, 
-  ((powerset_construction.build_dfa g = Some x) /\ dfa.run (x) l)
-   = reg_grammar.parse g l.
+  (* If the method to construct a valid DFA returns a valid value for a DFA, then we can con*)
+  (* clude that the DFA built from a grammar and the parser does the same work.            *)
+  (* In other words, the automaton and the parser has the same rules, the same initial sta-*)
+  (* te and the same final states.                                                         *) 
+  Lemma dfa_and_parser : forall l,
+  powerset_construction.build_dfa g = (Some (powerset_construction.dfa g))
+  -> reg_grammar.parse g l = dfa.run (powerset_construction.dfa g) l .
     Proof.
       intros.
-      unfold reg_grammar.parse.
       reflexivity.
-    Qed. *)
+    Qed. 
+
 
 End dfa_lemmas.
 
@@ -415,6 +412,9 @@ Section nfa_lemmas.
   (* Now it is presented the same idea, but for NFAs:                                           *)
   Variable y: (nfa.t (powerset_construction_nfa.state NT) T).
 
+  (* The idea for a accepting state for a given NFA built from a grammar can be read as:     *)
+  (* "if i have a NFA y such that y is built from the procedure, if after running the   "    *)
+  (* "list of terminal symbols it reaches a final state, then it is the case it returns true"*)
   Inductive run_true_nfa (g: reg_grammar.g T NT) : list T -> Prop := 
   |run_t_nfa : forall l:list T,
    powerset_construction_nfa.build_nfa g = Some y /\
@@ -454,5 +454,13 @@ Section nfa_lemmas.
     + assumption.
     + rewrite <- H2. reflexivity. 
   Qed.
+
+  Lemma nfa_and_parser : forall l,
+  powerset_construction_nfa.build_nfa g = (Some (powerset_construction_nfa.nfa g))
+  -> reg_grammar.parse g l = nfa.run (powerset_construction_nfa.nfa g) l .
+    Proof.
+      intros.
+      reflexivity.
+    Qed.
 
 End nfa_lemmas.

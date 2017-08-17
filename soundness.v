@@ -335,7 +335,7 @@ Section dfa_lemmas.
   Qed. *)
 
   (* The variable "x" below stands for a valid DFA:                                                 *)
-  Variable x : (dfa.t (powerset_construction.state NT) T).
+  (* Variable x : (dfa.t (powerset_construction.state NT) T). *)
 
   (* The proposition "run_true" states that, given a valid DFA that can be built from a grammar,the       *)
   (* powerset_construction.build_dfa returns a valid value (i.e, "Some a", where "a" has the same type as *)
@@ -343,47 +343,37 @@ Section dfa_lemmas.
   (* given derivation that starts from the dfa's starting state.                                          *)
   Inductive run_true_dfa (g: reg_grammar.g T NT) : list T -> Prop := 
   |run_t : forall l:list T,
-   powerset_construction.build_dfa g = Some x /\
-  (dfa.is_final (x)
-    (dfa.run' (dfa.next (x)) l
-     (dfa.initial_state (x))) = true) -> run_true_dfa g l.
+  (dfa.is_final (powerset_construction.build_dfa g)
+    (dfa.run' (dfa.next (powerset_construction.build_dfa g)) l
+     (dfa.initial_state (powerset_construction.build_dfa g))) = true) -> run_true_dfa g l.
 
   (* The following lemma states that, for all runs on list of terminals for all automata built from a given grammar*)
   (* it retuns true iff it reaches a final state after running the word on the automata, starting in the initial   *)
   (*state of the automata, as stated in "run_true".                                                                 *)
   Lemma run_soundness_true_forall: forall g :reg_grammar.g T NT, forall l:list T,
-  powerset_construction.build_dfa g = Some x /\ dfa.run (x) l = true  <-> run_true_dfa g l.
+  dfa.run (powerset_construction.build_dfa g) l = true  <-> run_true_dfa g l.
   Proof.
   intros.
   split.
   - intros. apply run_t. destruct H1. split.
-    + rewrite <- H1. reflexivity.
-    + rewrite <- H2. reflexivity. 
-  - intros. destruct H1. destruct H1. split.
-    + assumption.
-    + rewrite <- H2. reflexivity. 
+  - intros.  destruct H1. rewrite <- H1. reflexivity. 
   Qed. 
 
   (*Following the idea presented above, we can define the soundness in the case the automata *)
   (*should return false after a run in a given list of terminal symbols:                     *)
  Inductive run_false_dfa (g: reg_grammar.g T NT) : list T -> Prop := 
   |run_f : forall l:list T,
-   powerset_construction.build_dfa g = Some x /\
-  (dfa.is_final (x)
-    (dfa.run' (dfa.next (x)) l
-     (dfa.initial_state (x))) = false) -> run_false_dfa g l.
+  (dfa.is_final (powerset_construction.build_dfa g)
+    (dfa.run' (dfa.next (powerset_construction.build_dfa g)) l
+     (dfa.initial_state (powerset_construction.build_dfa g))) = false) -> run_false_dfa g l.
 
   Lemma run_soundness_false_forall: forall g :reg_grammar.g T NT, forall l:list T,
-  powerset_construction.build_dfa g = Some x /\ dfa.run (x) l = false <-> run_false_dfa g l.
+  dfa.run (powerset_construction.build_dfa g) l = false <-> run_false_dfa g l.
   Proof.
   intros.
   split.
-  - intros.  destruct H1. apply run_f. split.
-    + rewrite <- H1. reflexivity.
-    + rewrite <- H2. reflexivity. 
-  - intros. destruct H1. destruct H1. split.
-    + assumption.
-    + rewrite <- H2. reflexivity. 
+  - intros.  inversion H1. apply run_f. rewrite <- H3. reflexivity.
+  - intros. destruct H1. destruct H1. reflexivity.
   Qed. 
 
   (* Then, we can conclude that both the parser for a given grammar and the automata built from *)
@@ -394,8 +384,7 @@ Section dfa_lemmas.
   (* In other words, the automaton and the parser has the same rules, the same initial sta-*)
   (* te and the same final states.                                                         *) 
   Lemma dfa_and_parser : forall l,
-  powerset_construction.build_dfa g = (Some (powerset_construction.dfa g))
-  -> reg_grammar.parse g l = dfa.run (powerset_construction.dfa g) l .
+  reg_grammar.parse g l = dfa.run (powerset_construction.build_dfa g) l .
     Proof.
       intros.
       reflexivity.
@@ -404,20 +393,19 @@ Section dfa_lemmas.
 
 End dfa_lemmas.
 
+(* under revision 
 Section nfa_lemmas.
   Variables (S A T NT : Type).
   Variable g: reg_grammar.g T NT.
   Context `{EqDec T eq} `{EqDec NT eq}.
 
   (* Now it is presented the same idea, but for NFAs:                                           *)
-  Variable y: (nfa.t (powerset_construction_nfa.state NT) T).
+  (* Variable y: (nfa.t (powerset_construction_nfa.state NT) T).*)
 
   (* The idea for a accepting state for a given NFA built from a grammar can be read as:     *)
   (* "if i have a NFA y such that y is built from the procedure, if after running the   "    *)
   (* "list of terminal symbols it reaches a final state, then it is the case it returns true"*)
   Inductive run_true_nfa (g: reg_grammar.g T NT) : list T -> Prop := 
-  |run_t_nfa : forall l:list T,
-   powerset_construction_nfa.build_nfa g = Some y /\
   (nfa.is_final (y)
     (nfa.run' (nfa.next (y)) l
      (nfa.initial_state (y))) = true) -> run_true_nfa g l.
@@ -463,4 +451,4 @@ Section nfa_lemmas.
       reflexivity.
     Qed.
 
-End nfa_lemmas.
+End nfa_lemmas. *)

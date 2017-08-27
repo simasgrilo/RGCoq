@@ -166,29 +166,6 @@ Section reg_grammar_lemmas.
     destruct reg_grammar.is_final;auto.
   Qed.
 
-  (* -- In (None) a prob. *)(*
-  Inductive final_state (g:reg_grammar.g T NT)  : (list (option NT)) -> Prop :=
-  | state_final_e :
-                  (reg_grammar.is_final (reg_grammar.rules g) [] = true) -> final_state g []
-
-  | state_final :  forall a, (In (None) a \/
-                  (exists n,(In (Some n) a /\ reg_grammar.is_final (reg_grammar.rules g) (a) = true))) -> final_state g a.
-
-  (*testing with inductive proposition*)
-  Lemma is_final_true_inductive : forall l,forall g:reg_grammar.g T NT,
-  reg_grammar.is_final (reg_grammar.rules g) l = true <-> final_state g l.
-  Proof.
-  intros.
-  split.
-  - intros. destruct l. inversion H1. apply state_final with (g:= g).
-    destruct o. right. exists n. split. 
-        + simpl. left. reflexivity.
-        + assumption. 
-        + left. simpl. left. reflexivity.
-  - intros. destruct H1.
-    + assumption.
-    + destruct H1 as [left | right]. destruct a. inversion left. inversion left. rewrite H1. reflexivity.
-    (*stuck*) *)
 
   (* The "is_final" function should return true if it is verifying a final state. *)
   (*As defined by is_final's behaviour, it should return true if there is a None  *)
@@ -308,6 +285,7 @@ End reg_grammar_lemmas.
 Section dfa_lemmas.
   Variables (S A T NT : Type).
   Variable g: reg_grammar.g T NT.
+  Variable m: dfa.t T NT.
   Context `{EqDec T eq} `{EqDec NT eq}.
 
   (*The following lemma asserts that a is_final function should always return true or false *)
@@ -317,30 +295,8 @@ Section dfa_lemmas.
     destruct dfa.run;auto.
     Qed.
 
-
-  (* The following lemma asserts that a run in a list of terminal symbols with a automata   *)
-  (* shall return true iff there is an final state that is reachable from the initial state.*)
-  (* incomplete lemma: we prove for a specific case.                                        *)
-
-  (*Lemma run_soundness :forall grammar:reg_grammar.g T NT,forall l:list T, exists final,
-  dfa.run (powerset_construction.dfa g) l = true 
-  <-> dfa.is_final (powerset_construction.dfa g) final = true.
-  Proof.
-  intros.
-  exists (dfa.run' (dfa.next (powerset_construction.dfa g))
-  l  (dfa.initial_state (powerset_construction.dfa g ))).
-  split.
-  - intros. rewrite <- H1. simpl. simpl in H1. reflexivity. 
-  - intros. rewrite <- H1. reflexivity.
-  Qed. *)
-
-  (* The variable "x" below stands for a valid DFA:                                                 *)
-  (* Variable x : (dfa.t (powerset_construction.state NT) T). *)
-
-  (* The proposition "run_true" states that, given a valid DFA that can be built from a grammar,the       *)
-  (* powerset_construction.build_dfa returns a valid value (i.e, "Some a", where "a" has the same type as *)
-  (* the "x" presented above. Then, this given a returning true means that it reached a final state from a*)
-  (* given derivation that starts from the dfa's starting state.                                          *)
+  (* The proposition "run_true_dfa" states that, given a valid DFA that can be built from a        *)
+  (* grammar it returns true iff after running over a word, the automaton is in a final state. *)
   Inductive run_true_dfa (g: reg_grammar.g T NT) : list T -> Prop := 
   |run_t : forall l:list T,
   (dfa.is_final (powerset_construction.build_dfa g)
@@ -349,7 +305,7 @@ Section dfa_lemmas.
 
   (* The following lemma states that, for all runs on list of terminals for all automata built from a given grammar*)
   (* it retuns true iff it reaches a final state after running the word on the automata, starting in the initial   *)
-  (*state of the automata, as stated in "run_true".                                                                 *)
+  (*state of the automaton, as stated in "run_true_dfa".                                                                 *)
   Lemma run_soundness_true_forall: forall g :reg_grammar.g T NT, forall l:list T,
   dfa.run (powerset_construction.build_dfa g) l = true  <-> run_true_dfa g l.
   Proof.
@@ -359,7 +315,7 @@ Section dfa_lemmas.
   - intros.  destruct H1. rewrite <- H1. reflexivity. 
   Qed. 
 
-  (*Following the idea presented above, we can define the soundness in the case the automata *)
+  (*Following the idea presented above, we can define the soundness in the case the automaton *)
   (*should return false after a run in a given list of terminal symbols:                     *)
  Inductive run_false_dfa (g: reg_grammar.g T NT) : list T -> Prop := 
   |run_f : forall l:list T,
@@ -391,64 +347,80 @@ Section dfa_lemmas.
     Qed. 
 
 
+  Lemma dfa_to_regular_grammar_sound: forall m:dfa.t S A, dfa.dfa_to_regular_grammar m
+  = {| reg_grammar.start_symbol := (dfa.initial_state m);
+      reg_grammar.rules := (dfa.dfa_rules_to_regular_grammar m (dfa.transition_rules m))|}.
+  Proof.
+  intros. reflexivity. Qed.
+  Check dfa.dfa_to_regular_grammar.
+
+
+  (* Problem: the transition rules of the DFA is not being used explicitely in the *)
+  (* next function of the DFA. *)
+  (*Lemma parser_and_dfa: forall l, dfa.run (m) l = 
+  reg_grammar.parse (dfa.dfa_to_regular_grammar m) l.
+  Proof.
+  intros.
+  unfold dfa.dfa_to_regular_grammar. unfold dfa.run.
+  destruct l. Abort.*)
+
 End dfa_lemmas.
 
-(* under revision 
-Section nfa_lemmas.
-  Variables (S A T NT : Type).
-  Variable g: reg_grammar.g T NT.
-  Context `{EqDec T eq} `{EqDec NT eq}.
+Section nfa_lemmas (* under construction *).
+  Variables (S A : Type).
+  Variable nfa : nfa.t S A.
+  Context `{EqDec S eq} `{EqDec A eq}.
 
-  (* Now it is presented the same idea, but for NFAs:                                           *)
-  (* Variable y: (nfa.t (powerset_construction_nfa.state NT) T).*)
-
-  (* The idea for a accepting state for a given NFA built from a grammar can be read as:     *)
-  (* "if i have a NFA y such that y is built from the procedure, if after running the   "    *)
-  (* "list of terminal symbols it reaches a final state, then it is the case it returns true"*)
-  Inductive run_true_nfa (g: reg_grammar.g T NT) : list T -> Prop := 
-  (nfa.is_final (y)
-    (nfa.run' (nfa.next (y)) l
-     (nfa.initial_state (y))) = true) -> run_true_nfa g l.
-
-  Lemma run_soundness_true_forall_nfa: forall g :reg_grammar.g T NT, forall l:list T,
-  powerset_construction_nfa.build_nfa g = Some y /\ nfa.run (y) l = true  <-> run_true_nfa g l.
-  Proof.
-  intros.
-  split.
-  - intros. apply run_t_nfa. destruct H1. split.
-    + rewrite <- H1. reflexivity.
-    + rewrite <- H2. reflexivity. 
-  - intros. destruct H1. destruct H1. split.
-    + assumption.
-    + rewrite <- H2. reflexivity. 
-  Qed.
-
-  Inductive run_false_nfa (g: reg_grammar.g T NT) : list T -> Prop := 
-  |run_f_nfa : forall l:list T,
-   powerset_construction_nfa.build_nfa g = Some y /\
-  (nfa.is_final (y)
-    (nfa.run' (nfa.next (y)) l
-     (nfa.initial_state (y))) = false) -> run_false_nfa g l.
-
-  Lemma run_soundness_false_forall_nfa: forall g :reg_grammar.g T NT, forall l:list T,
-  powerset_construction_nfa.build_nfa g = Some y /\ nfa.run (y) l = false <-> run_false_nfa g l.
-  Proof.
-  intros.
-  split.
-  - intros. apply run_f_nfa. destruct H1. split.
-    + rewrite <- H1. reflexivity.
-    + rewrite <- H2. reflexivity. 
-  - intros. destruct H1. destruct H1. split.
-    + assumption.
-    + rewrite <- H2. reflexivity. 
-  Qed.
-
-  Lemma nfa_and_parser : forall l,
-  powerset_construction_nfa.build_nfa g = (Some (powerset_construction_nfa.nfa g))
-  -> reg_grammar.parse g l = nfa.run (powerset_construction_nfa.nfa g) l .
+  Lemma run'_companion : forall m:nfa.t S A, forall l, nfa.run m l = true \/ nfa.run m l = false.
     Proof.
-      intros.
-      reflexivity.
+    intros.
+    destruct nfa.run;auto.
     Qed.
 
-End nfa_lemmas. *)
+  (* pode ser o caso de state não ser final... nfa.verify_final_state nfa states = true *)
+  (* e o estado que pode ser veradeiro pode não ser state.                              *)
+  Lemma verify_final_state_true : forall states,
+  nfa.verify_final_state nfa states = true
+  ->  exists state: S, In state (states) /\ nfa.is_final nfa state = true.
+  Proof.
+  intros.
+  induction states.
+    + inversion H1.
+    + destruct H1.  exists a. split. simpl;auto. (*no evidence that a is a final state...*)
+      case (nfa.is_final nfa a == true).
+      intros.  (* opa *)
+      intros. Admitted.
+
+(* TODO *)
+
+  Inductive nfa_true (nfa: nfa.t S A) : list A -> Prop :=
+  | nfa_t : forall l: list A,
+        nfa.verify_final_state nfa (nfa.run' (nfa) l  ([(nfa.initial_state nfa)])) = true -> nfa_true nfa l.
+
+  (* The NFA returns true iff it reaches a possible final state after a run. *)
+  Lemma nfa_returns_true: forall l:list A, nfa.run nfa l = true
+  <-> nfa_true nfa l.
+  Proof.
+  intros.
+  split.
+  - intros. apply nfa_t. rewrite <- H1. reflexivity.
+  - intros. unfold nfa.run. inversion H1. apply H2.
+  Qed.
+  (*Lemma nfa_returns_true : forall l:list A, nfa.run nfa l = true <->
+  exists state: S, In state (nfa.run' nfa l [nfa.initial_state nfa])
+   /\ nfa.is_final nfa state = true. *)
+
+   Inductive nfa_false (nfa: nfa.t S A) : list A -> Prop :=
+  | nfa_f : forall l: list A,
+   nfa.verify_final_state nfa (nfa.run' (nfa) l  ([(nfa.initial_state nfa)])) = false -> nfa_false nfa l.
+
+  Lemma nfa_returns_false: forall l:list A, nfa.run nfa l = false
+  <-> nfa_false nfa l.
+  Proof.
+  intros.
+  split.
+  - intros. apply nfa_f. rewrite <- H1. reflexivity.
+  - intros. unfold nfa.run. inversion H1. apply H2.
+  Qed.
+
+End nfa_lemmas.

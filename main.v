@@ -251,17 +251,11 @@ Module nfa.
     Variable (S A : Type).
     Context  `{EqDec S eq} `{EqDec A eq}.
 
-    (* Seria melhor uma forma de extrair a função "next" de dentro da lista de regras? *)
-    (* ideia: diferente do DFA, tratar os estados de um NFA como uma lista de possíveis estados. *)
-    (* the difference between NFAs and DFAs is that we treat them now as having a list of possible *)
-    (* states that from a given state and a terminal symbol it can go. *)
     Record t := NFA {
       initial_state : S;
       is_final : S -> bool;
       next : A -> S -> list S;
       transition_rules : list(S * fa_rules.fa_transitions A (list S))
-      (*states : list S;*)
-      (*maybe it will be necessary to store the list of states for the minimization algorithm*)
    }.
 
     (* run' is the function that does the verification steps of the automata, applying     *)
@@ -279,7 +273,7 @@ Module nfa.
       | [] => acc
       | t :: l => step m acc t
                |> rec l
-      end |> nodup equiv_dec.
+      end.
 
     (* The acceptance criteria is sliglty modified : since we can reach more than one state *)
     (* while going through a word, we have to check whether the nfa can be at (at least) one*)
@@ -295,9 +289,9 @@ Module nfa.
 
     (* We call the above function to check whether the run in the nfa returns true or false. *)
     Definition run (m : t) (l : list A) : bool :=
-     verify_final_state m (run' (m) l  ([initial_state m])).
+     verify_final_state m ((run' (m) l  ([initial_state m]))).
     Definition run2 (m :t) (l : list A) : list S :=
-      run' (m) l  ([initial_state m]).
+      nodup equiv_dec (run' (m) l  ([initial_state m])).
 
     (* The path function returns all the states the automata have been while consuming the *)
     (* word given to be checked whether it is recognizable by the automata or not.         *)
@@ -335,22 +329,37 @@ Module grammar_to_nfa.
   Definition next (t : T) (s:state) : list state :=
       reg_grammar.step (reg_grammar.rules g) t (filterMap id [s]).
 
-
   Definition rules: list(state * fa_rules.fa_transitions T (list state)) := [].
 
   Definition build_nfa_from_grammar := nfa.NFA (init) (final) (next) (rules).
 
+  Lemma same_initial_state :  Some (reg_grammar.start_symbol g) = 
+  nfa.initial_state (build_nfa_from_grammar).
+  Proof. reflexivity. Qed.
+
+  Definition nfa_to_grammar_aux : forall l, forall s,
+  reg_grammar.is_final (reg_grammar.rules g)
+    (reg_grammar.parse' (reg_grammar.rules g) l
+      s) =
+  nfa.verify_final_state build_nfa_from_grammar
+    (nfa.run' build_nfa_from_grammar l
+      s).
+  Proof.
+  intros l s.
+  generalize dependent s.
+  induction l. 
+  - intros s. unfold reg_grammar.is_final. unfold nfa.verify_final_state. simpl. Admitted.
+
   Definition nfa_to_grammar_sound : forall l,
   reg_grammar.parse g l = nfa.run (build_nfa_from_grammar) l.
   Proof.
-  unfold reg_grammar.parse. unfold nfa.run.
+  unfold reg_grammar.parse. unfold nfa.run. rewrite same_initial_state.
   induction l.
   - simpl. reflexivity.
   - simpl. Admitted.
 
   End grammar_to_nfa.
 End grammar_to_nfa.
-
 
 Module dfa.
   Section dfa.
@@ -361,10 +370,7 @@ Module dfa.
       initial_state : S;
       is_final : S -> bool;
       next : S -> A -> S;
-      (* The syntax of the transition rules follows the same idea as for the grammars. *)
       transition_rules : list(S * fa_rules.fa_transitions A S)
-      (*states : list S;*)
-      (*maybe it will be necessary to store the list of states for the minimization algorithm*)
     }.
 
     (*run' is the function that does the verification steps of the automata, applying     *)
@@ -390,29 +396,7 @@ Module dfa.
     Definition path (m:t) (l:list A) : list S :=
       get_trace m l (initial_state m) [initial_state m].
 
-    (* further work  *)
-    (* Minimization of a DFA *)
-    (**
-    Fixpoint build_tabular(m:t)(s:S) (l: list S) : list ((S * S) * nat) :=
-      match l with
-      |[] => []
-      | a::t => if (s <> a) then
-                  match is_final m s, is_final m a with
-                  | true,false => [((s,a),1)]
-                  | false,true => [((s,a),1)]
-                  | _,_        => [((s,a),0)]
-                  end
-                  ++ build_tabular m s t
-                else build_tabular m s t
-  end.
-
-  (* One can build the table for all pair of states from a manually built automaton *)
-  Fixpoint build_full_table (m:t)(l1: list S) (l2: list S) : list ((S * S) * nat) :=
-  match l1 with 
-  | [] => []
-  | a::t => build_tabular m a l2 ++ build_full_table m t l2
-  end.
-  **)
+   
   (* Since DFAs are NFAs with a "restriction" in the set of rules, we can easily create a *)
   (* NFA from a DFA in a way that does not change the original automata's language: given *)
   (* a list of rules, we just create another rule from the start symbol that goes to ano- *)
@@ -450,49 +434,33 @@ Module dfa.
   Definition dfa_to_regular_grammar (m:t): reg_grammar.g A S :=
     reg_grammar.build_grammar (initial_state m) (dfa_rules_to_regular_grammar m (transition_rules m)).
 
-  (* We can build an NFA from a DFA, which is trivial. *)
-  Variable d : t.
+  (* We can build an NFA from a DFA. *)
+  Variable m : t.
 
   (* The first step is to rewrite the next function of the DFA as the same way it behaves for the NFA*)
   Definition nfa_step(t:A) (s:S) :=
-    [dfa.next d s t].
+    [dfa.next m s t].
 
-  Definition dfa_to_nfa := nfa.NFA (dfa.initial_state d) (dfa.is_final d)
-  (nfa_step) (dfa.dfa_rules_to_nfa_rules (dfa.transition_rules d)).
+  Definition dfa_to_nfa := nfa.NFA (dfa.initial_state m) (dfa.is_final m)
+  (nfa_step) (dfa.dfa_rules_to_nfa_rules (dfa.transition_rules m)).
 
-  Check dfa_to_nfa.
-
-  Lemma aux : (dfa.initial_state d) = (nfa.initial_state (dfa_to_nfa)).
-  Proof.
-  intros. 
-  reflexivity.
-  Qed.
-  Lemma aux2 : (dfa.is_final d) = nfa.is_final (dfa_to_nfa).
-  Proof.
-  reflexivity.
-  Qed.
-  Lemma aux3 :forall a:A, forall s:S, [(dfa.next d s a)] = nfa_step a s.
-  Proof. reflexivity. Qed.
-
-(* ideia: generalizar o run funcionando para todos os estados. *)
-  Lemma pnc : forall l, forall s, 
-  is_final d (run' (next d) l (s)) =
-  nfa.verify_final_state dfa_to_nfa (nfa.run' dfa_to_nfa l [s]).
-  Proof.
-  intros l. 
+  Lemma dfa_to_nfa_sound_aux : forall l, forall s,
+  dfa.is_final m (dfa.run' (dfa.next m) l (s)) =
+  nfa.verify_final_state (dfa.dfa_to_nfa) (nfa.run' (dfa.dfa_to_nfa) l [s]).
+  Proof. 
+  intros.
+  generalize dependent s.
   induction l.
-  - simpl. intros s. destruct is_final;auto.
-  - simpl.    Admitted.
+  - simpl. intros s.  destruct dfa.is_final;auto.
+  - intros. simpl. rewrite IHl. reflexivity. Qed.
 
   Lemma dfa_to_nfa_sound : forall l,
-    dfa.run d l = nfa.run (dfa_to_nfa) l.
+    dfa.run m l = nfa.run (dfa.dfa_to_nfa) l.
    Proof. 
-   unfold nfa.run. unfold run. rewrite aux. generalize (nfa.initial_state dfa_to_nfa).
+   unfold nfa.run. unfold dfa.run.
    induction l.  
-      simpl. destruct is_final. reflexivity. reflexivity. 
-   - unfold run. unfold dfa_to_nfa. unfold nfa.run. 
-     unfold dfa_to_nfa in IHl. simpl. 
-    Admitted.
+      simpl. destruct dfa.is_final. reflexivity. reflexivity. 
+   - rewrite dfa_to_nfa_sound_aux. reflexivity. Qed. 
 
   End dfa.
 End dfa.
@@ -671,9 +639,7 @@ Module examples.
        dfa.next := a_b_next;
        dfa.transition_rules := a_b_transition_rules |}.
 
-  (*(* manual minimization test *)
-  Eval compute in dfa.build_full_table a_b_dfa [Some non_terminal.A; Some non_terminal.B]  [Some non_terminal.A; Some non_terminal.B].
-  *)
+
   (* Examples running the DFA. *)
   Eval compute in dfa.run a_b_dfa [].
   Eval compute in dfa.run a_b_dfa [terminal.a].
@@ -704,6 +670,7 @@ Module examples.
 
   Check dfa.dfa_to_nfa.
   Check nfa_from_dfa_a_b.
+  Check a_b_dfa'.
 
   Eval compute in nfa.run nfa_from_dfa_a_b [].
   Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a;terminal.a;terminal.b;terminal.a].
@@ -712,6 +679,12 @@ Module examples.
   Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b].
   Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b;terminal.b].
   Eval compute in nfa.run nfa_from_dfa_a_b [terminal.b; terminal.a].
+
+  (*and we have that they run as the same formalism: *)
+  Lemma nfa_from_dfa_a_b_good : forall l, dfa.run a_b_dfa l = nfa.run nfa_from_dfa_a_b l.
+  Proof.
+  apply dfa.dfa_to_nfa_sound.
+  Qed.
 
   (* We can also build a grammar from the automaton given above: *)
 
@@ -780,18 +753,6 @@ Module examples.
   Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2.
   Definition automata_example_2 := powerset_construction.build_dfa grammar_example_2.
 
-
-  (* testing of the table for the dfa minimization *)
-  (* build_full_table (m:t)(l1: list S) (l2: list S) *)
-  (* looks like it works for the case of the grammar: *)
-  (*  Eval compute in reg_grammar.build_full_table grammar_example_2 (reg_grammar.get_all_nt (reg_grammar.rules grammar_example_2))
-  (reg_grammar.get_all_nt (reg_grammar.rules grammar_example_2)).
-
-  Eval compute in dfa.states automata_example_2.
-  Eval compute in  (powerset_construction.list_state (rules_example_2) |> filterMap id).
-  Eval compute in dfa.build_tabular automata_example_2 [Some S] [(powerset_construction.list_state (rules_example_2))].
-  *)
-  (* ----------------------------------  *)
 
   Eval compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
   Eval compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
@@ -890,12 +851,12 @@ Module examples.
     nfa.next := aa_bb_next;
     nfa.transition_rules := aa_bb_list_transitions |}.
 
-  Eval compute in nfa.run2 aa_bb_nfa [a;a;b;a].
+  Eval compute in nfa.path aa_bb_nfa [a;a;b;a;a;a;a;a].
   Eval compute in nfa.run aa_bb_nfa [a;a;b;a].
   Eval compute in nfa.run aa_bb_nfa [b;a;b;b].
-  Eval compute in nfa.path aa_bb_nfa [b;a;b;b].
-  Eval compute in nfa.run2 aa_bb_nfa [b;a;b;b;b;b;b;b].
-  Eval compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;b;b].
+  Eval compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;a].
+  Eval compute in nfa.run2 aa_bb_nfa [b;a;b;b;b;b;b;b;b].
+  Eval compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;b;b;b].
 
   Definition test := [(S, Continue a S); (S, Single b)].
 

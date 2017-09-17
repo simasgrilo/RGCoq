@@ -10,14 +10,14 @@ Import ListNotations.
 (* Lemmas about functions within the rhs module          *)
 Section rhs_lemmas.
 (*the following lemma states that isEmpty won't return a value different from false or true *)
-  Lemma isEmpty_sound  :forall NT T, forall r:rhs.t T NT, rhs.isEmpty r = false \/ rhs.isEmpty r = true.
+  Lemma isEmpty_sound  :forall NT T : Type, forall r:rhs.t T NT, rhs.isEmpty r = false \/ rhs.isEmpty r = true.
     Proof.
     intros.
     destruct rhs.isEmpty;auto.
     Qed.
   (* this lemma states that the function isEmpty only returns true when the RHS of a given rule*)
   (* is empty, i.e., a rule is in the form A -> e, e meaning the empty string.                 *)
-  Lemma isEmpty_true : forall NT T, forall r:rhs.t T NT, rhs.isEmpty r = true <-> r = Empty.
+  Lemma isEmpty_true : forall NT T : Type, forall r:rhs.t T NT, rhs.isEmpty r = true <-> r = Empty.
   Proof.
   intros.
   split.
@@ -26,7 +26,7 @@ Section rhs_lemmas.
   Qed.
 
   (* Otherwise, it returns false iff the rule is not empty.                                   *)
-  Lemma isEmpty_false : forall NT T, forall r:rhs.t T NT, rhs.isEmpty r = false <-> (r <> Empty).
+  Lemma isEmpty_false : forall NT T : Type, forall r:rhs.t T NT, rhs.isEmpty r = false <-> (r <> Empty).
   Proof.
   intros.
   rewrite <- isEmpty_true.
@@ -59,11 +59,11 @@ Section reg_grammar_lemmas.
   reg_grammar.step_rhs t rhs = [None] \/ (exists nt, reg_grammar.step_rhs t rhs = [Some nt]).
   Proof.
   intros t rhs.
-  destruct rhs; auto.
+  destruct rhs. auto.
   simpl. destruct equiv_dec. auto.
   auto.
-  simpl. destruct equiv_dec eqn:I;auto. 
-  right. right. exists (n). reflexivity.
+  simpl. destruct equiv_dec. right. right. exists (n). auto. 
+  left. reflexivity.
   Qed.
 
   (* The function step_rhs returns None iff the rule used is of the kind Single x, and x equals the x*)
@@ -74,13 +74,13 @@ Section reg_grammar_lemmas.
   intros. split.
   - intros. destruct rhs. 
      + inversion H1.
-     + inversion H1. destruct equiv_dec. rewrite e. reflexivity. inversion H3.
-     + inversion H1. destruct equiv_dec. inversion H3. inversion H3.
+     + simpl in H1. destruct equiv_dec. rewrite e. reflexivity. inversion H1.
+     + simpl in H1. destruct equiv_dec. inversion H1. inversion H1.
   - intros. 
-    rewrite H1. simpl. inversion H1. destruct equiv_dec. 
+    rewrite H1. simpl. destruct equiv_dec. 
     reflexivity. exfalso. apply c. reflexivity.
   Qed.
-
+  (*parei aqui*)
   Lemma step_rhs_some : forall t:T, forall rhs: rhs.t T NT, forall nt:NT,
   reg_grammar.step_rhs t rhs = [Some nt] <-> rhs = Continue t nt.
   Proof.
@@ -89,12 +89,12 @@ Section reg_grammar_lemmas.
   - intros. destruct rhs. 
     + inversion H1.
     + simpl in H1. destruct equiv_dec. inversion H1. inversion H1.
-    + simpl in H1. destruct equiv_dec. congruence. inversion H1.
+    + simpl in H1. destruct equiv_dec. rewrite <- e. inversion H1. reflexivity. inversion H1.
   - intros. destruct rhs.
     + inversion H1.
     + inversion H1.
-    + simpl. destruct equiv_dec. rewrite e in H1. inversion H1. reflexivity.
-      congruence.
+    + simpl. destruct equiv_dec. inversion H1. reflexivity. inversion H1.
+      exfalso. apply c. rewrite H3. reflexivity.
   Qed.
 
   Lemma step_rhs_nil: forall t:T, forall rhs: rhs.t T NT, reg_grammar.step_rhs t rhs = [] <->
@@ -111,13 +111,13 @@ Section reg_grammar_lemmas.
       simpl in H1. destruct equiv_dec. inversion H1. congruence.
   - intros. destruct rhs.
     + simpl. reflexivity.
-    + simpl. destruct H1. inversion H1. destruct H1. destruct H1 as [H2 | H3].
+    + simpl. destruct H1.  inversion H1. destruct H1. destruct H1 as [H2 | H3].
     { destruct H2. inversion H1. destruct equiv_dec. exfalso. 
     apply H2. inversion e. reflexivity. reflexivity. }
     destruct H3. destruct H1. inversion H1.
     + simpl. destruct H1.
     inversion H1. destruct H1. destruct H1 as [H2 | H3]. destruct H2. inversion H1.
-    destruct H3. destruct equiv_dec. destruct H1. inversion e. congruence. reflexivity.
+    destruct H3. destruct equiv_dec. destruct H1. congruence. reflexivity.
   Qed.
 
   (* The following lemma states the soundness of the step_nt function. This function tries to apply all    *)
@@ -145,12 +145,21 @@ Section reg_grammar_lemmas.
   (* rule of the kind "Continue t' nt" could be used to derive the terminal symbol t                      *)
   Definition step_sound: forall rules, forall t, forall acc, reg_grammar.step rules t acc = [] \/
   In (None) (reg_grammar.step rules t acc) \/ (exists nt:NT, In (Some nt)(reg_grammar.step rules t acc)).
-  Proof.
+  Proof.  
   intros.
   destruct reg_grammar.step.
   - left. reflexivity.
   - destruct o. right. right. exists n. simpl. left. reflexivity.
     right. left. simpl. left. reflexivity.
+  Qed.
+
+  Lemma getRHS_sound : forall nt:NT, forall rules: list (NT * rhs.t T NT),  reg_grammar.getRHS nt rules = []
+  \/ exists rule:rhs.t T NT, In (rule) (reg_grammar.getRHS nt rules) .
+  Proof.
+  intros.
+  destruct reg_grammar.getRHS.
+  - left. reflexivity.
+  - right. exists t. simpl. auto.
   Qed.
 
   (* The following lemmas states the soundness of the parse' function, the main parser loop. By the      *)
@@ -195,6 +204,7 @@ Section reg_grammar_lemmas.
     destruct reg_grammar.is_final;auto.
   Qed.
 
+  (* (reg_grammar.getRHS n (reg_grammar.rules g) |> existsb rhs.isEmpty) = true))).*)
 
   (* The "is_final" function should return true if it is verifying a final state. *)
   (*As defined by is_final's behaviour, it should return true if there is a None  *)
@@ -202,7 +212,9 @@ Section reg_grammar_lemmas.
   (* kind A -> "a" or A -> e, "a" being a terminal character and e means the empty string char. *)
   Lemma is_final_true : forall g:reg_grammar.g T NT, forall l: list (option NT),
   reg_grammar.is_final (reg_grammar.rules g) l = true -> (reg_grammar.is_final (reg_grammar.rules g) [] = true 
-  \/  (In (None) (l) \/ exists n,(In (Some n) l /\ reg_grammar.is_final (reg_grammar.rules g) (l) = true))).
+  \/  (In (None) (l) \/ exists n,(In (Some n) l /\ 
+  reg_grammar.is_final (reg_grammar.rules g) l = true))).
+  
   Proof.
   intros.
   - intros. destruct l. left. assumption.
@@ -347,18 +359,52 @@ Section dfa_lemmas.
   Proof.
   intros. reflexivity. Qed.
 
-  Check dfa.dfa_to_regular_grammar.
-  Check powerset_construction.build_dfa.
-
   (* Problem: the transition rules of the DFA is not being used explicitely in the            *)
   (* next function of the DFA. Ou vice-versa, creio que é porque a lista pode não corresponder*)
   (* à função next do autômato.                                                               *)
-  Lemma parser_and_dfa: forall l, dfa.run (m) l = 
+  (* TODO: Lemma parser_and_dfa: forall l, dfa.run (m) l = 
   reg_grammar.parse (dfa.dfa_to_regular_grammar m) l.
   Proof.
   intros.
   unfold dfa.dfa_to_regular_grammar. unfold dfa.run.
-  destruct l. Abort.
+  destruct l. Abort. *)
+
+  (* Lemmas about NFAs built from DFAs *)
+
+  Lemma same_initial_state : (dfa.initial_state m) = (nfa.initial_state (dfa.dfa_to_nfa m)).
+  Proof.
+  reflexivity.
+  Qed.
+  Lemma same_final_states : (dfa.is_final m) = nfa.is_final (dfa.dfa_to_nfa m).
+  Proof.
+  reflexivity.
+  Qed.
+  Lemma same_result_of_a_step :forall a:T, forall s:NT, [(dfa.next m s a)] = dfa.nfa_step m a s.
+  Proof. reflexivity. Qed.
+
+  (* For any state obtained after running the DFA or the NFA built from the DFA *)
+  (* The corresponding state in the NFA is final iff the state obtained in the  *)
+  (* DFA is final and vice-versa                                                *)
+  Lemma dfa_to_nfa_sound_aux : forall l, forall s,
+  dfa.is_final m (dfa.run' (dfa.next m) l (s)) =
+  nfa.verify_final_state (dfa.dfa_to_nfa m) (nfa.run' (dfa.dfa_to_nfa m) l [s]).
+  Proof. 
+  intros.
+  generalize dependent s.
+  induction l.
+  - simpl. intros s. destruct dfa.is_final;auto.
+  - intros. simpl. rewrite IHl. reflexivity. Qed.
+
+  (* We can conclude that both the DFA and the NFA obtained from the DFA has the *)
+  (* same behaviour                                                              *)
+
+  Lemma dfa_to_nfa_sound : forall l,
+    dfa.run m l = nfa.run (dfa.dfa_to_nfa m) l.
+   Proof. 
+   unfold nfa.run. unfold dfa.run.
+   induction l.  
+      simpl. destruct dfa.is_final. reflexivity. reflexivity. 
+   - rewrite dfa_to_nfa_sound_aux. reflexivity. Qed. 
 
 End dfa_lemmas.
 
@@ -393,7 +439,8 @@ Section nfa_lemmas (* under construction *).
     - intros. destruct states.
       + inversion H1.
       + simpl in H1. exists s. 
-         split. simpl;auto. destruct nfa.verify_final_state in H1.
+        destruct nfa.is_final.
+        unfold nfa.verify_final_state in H1.
   (*no evidence that s is a final state... rever forma de prova.*)
      Admitted.
 

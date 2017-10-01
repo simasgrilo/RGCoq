@@ -4,6 +4,12 @@ Require Import Classes.EquivDec.
 Require Import Coq.Program.Program.
 Require Import Bool.
 
+(* 27/09 : a partir daqui, modificar a gramática,
+inserindo V e T como conjnto de simbolos t e nt, se
+livra de transition_rules do dfa e do nfa e gera elas
+"on the fly" na hora de converter pra gramática aplicando
+next do automato com o conjunto de estados e o alfabeto. *)
+
 (*leave the type inference at maximum level in Coq, not being necessary to declare the type*)
 (*of parameters of functions, as seen in https://coq.inria.fr/cocorico/CoqNewbieQuestions *)
 
@@ -92,12 +98,16 @@ Module reg_grammar.
     (* T and NT                                                                             *)
   Record g : Type:= {
       start_symbol: NT;
-      rules : list(NT * rhs.t T NT)
+      rules : list(NT * rhs.t T NT);
+      terminal_symbols : list T;
+      nonterminal_symbols : list NT
   }.
 
-  Definition build_grammar (nt: NT) rules: g :={|
+  Definition build_grammar (nt: NT) rules alphabet nonterminal: g :={|
       start_symbol := nt;
-      rules := rules |}.
+      rules := rules;
+      terminal_symbols := alphabet ;
+      nonterminal_symbols := nonterminal |}.
 
   (* Next, we're going to write a function [parse] that decides whether a string
      is in the language represented by the grammar. The parser keeps track of
@@ -255,7 +265,8 @@ Module nfa.
       is_final : S -> bool;
       next : A -> S -> list S;
       states: list S;
-      transition_rules : list(S * fa_rules.fa_transitions A (list S))
+      alphabet: list A
+      (*transition_rules : list(S * fa_rules.fa_transitions A (list S)) *)
    }.
 
     (* run' is the function that does the verification steps of the automata, applying     *)
@@ -288,7 +299,7 @@ Module nfa.
     end. *)
 
     Definition verify_final_state' (m:t) (states: list S) :=
-      existsb (fun o => is_final m o) states.
+      existsb (fun x => is_final m x) states.
 
     (* We call the above function to check whether the run in the nfa returns true or false. *)
     Definition run (m : t) (l : list A) : bool :=
@@ -298,12 +309,14 @@ Module nfa.
 
     (* The path function returns all the states the automata have been while consuming the *)
     (* word given to be checked whether it is recognizable by the automata or not.         *)
+    (* tirar ocorrência de lista vazia *)
     Definition get_trace (m:t) : list A -> list S -> list (list S) -> list (list S):=
       fix rec l acc res :=
         match l with
         | [] => res
         | t::l => (res ++ ([step m acc t |> nodup equiv_dec])) |> rec l (step m acc t)
         end.
+
     Definition path (m:t) (l:list A) : list (list S) :=
       get_trace m l [initial_state m] [[initial_state m]].
 
@@ -332,8 +345,6 @@ Module grammar_to_nfa.
   Definition next (t : T) (s:state) : list state :=
       reg_grammar.step (reg_grammar.rules g) t (filterMap id [s]).
 
-  Definition rules: list(state * fa_rules.fa_transitions T (list state)) := [].
-
   Fixpoint get_all_nt (rules: list (NT * rhs.t T NT)) : list (option NT) :=
   match rules with
   | [] => []
@@ -341,7 +352,7 @@ Module grammar_to_nfa.
   end |> nodup equiv_dec.
 
   Definition build_nfa_from_grammar := nfa.NFA (init) (final) (next) 
-  (get_all_nt (reg_grammar.rules g)) (rules).
+  ([]) (reg_grammar.terminal_symbols g).
 
   Lemma same_initial_state :  Some (reg_grammar.start_symbol g) = 
   nfa.initial_state (build_nfa_from_grammar).
@@ -359,7 +370,15 @@ Module grammar_to_nfa.
   destruct s.
   - simpl. reflexivity.
   - simpl. unfold final. reflexivity.
-  - simpl. intros s. rewrite <- IHl. unfold nfa.step. Admitted.
+  - simpl. 
+  unfold build_nfa_from_grammar in IHl. unfold nfa.step. 
+  unfold build_nfa_from_grammar. Admitted.
+
+  (*lemma : dfa.is_final m (dfa.run' (dfa.next m) l (s)) =
+  nfa.verify_final_state' (dfa.dfa_to_nfa) (nfa.run' (dfa.dfa_to_nfa) l [s]).*)
+  (*is_final m (run' (next m) l (next m s a)) =
+nfa.verify_final_state' dfa_to_nfa (nfa.run' dfa_to_nfa l [next m s a])
+*)
 
   Definition nfa_to_grammar_sound : forall l,
   reg_grammar.parse g l = nfa.run (build_nfa_from_grammar) l.
@@ -384,7 +403,7 @@ Module dfa.
       states: list S;
       (* se livrar de transition rules e partir de uma aplicação de next em todos *)
       (* os estados com todos os alfabetos, armazenando também o alfabeto e V na gramática? *)
-      transition_rules : list(S * fa_rules.fa_transitions A S);
+      (* transition_rules : list(S * fa_rules.fa_transitions A S); *)
       alphabet: list A
     }.
 
@@ -409,7 +428,7 @@ Module dfa.
         | t::l => (res ++ [next m s t] ) |> rec l (next m s t)
         end.
     Definition path (m:t) (l:list A) : list S :=
-      get_trace m l (initial_state m) [initial_state m] |> nodup equiv_dec.
+      get_trace m l (initial_state m) [initial_state m] (*|> nodup equiv_dec*).
 
   (* Since DFAs are NFAs with a "restriction" in the set of rules, we can easily create a *)
   (* NFA from a DFA in a way that does not change the original automata's language: given *)
@@ -417,21 +436,21 @@ Module dfa.
   (* ther nonterminal symbol which is not final (so it doesn't change the language of the *)
   (* automata                                                                             *)
   (* TODO: DEPRECATED *)
-  Fixpoint dfa_rules_to_nfa_rules (rules : list(S * fa_rules.fa_transitions A S)) : list(S * fa_rules.fa_transitions A (list S)) :=                                             
+  (*Fixpoint dfa_rules_to_nfa_rules (rules : list(S * fa_rules.fa_transitions A S)) : list(S * fa_rules.fa_transitions A (list S)) :=                                             
   match rules with
    | [] => []
    | a::t => match (snd a) with
              | Goes t c => [(fst a, Goes t [c])]
              end
              ++ dfa_rules_to_nfa_rules t
-  end.
+  end. *)
 
   (* Converting a DFA to a regular grammar. *)
   (* This function converts the list of transition rules to a list of production rules of a *)
   (* grammar. All rules of the automata are converted to rules of the kind A -> aB, and when*)
   (* A is a final state in the automata, a rule A -> epsilon is added too.                  *)
   (* TODO: soundness of this thing? : construction algorithm 4! DONE*)
-  Fixpoint dfa_rules_to_regular_grammar(m:t) (transitions: list(S * fa_rules.fa_transitions A S)) 
+  (* Fixpoint dfa_rules_to_regular_grammar(m:t) (transitions: list(S * fa_rules.fa_transitions A S)) 
   : list (S * rhs.t A S) :=
   match transitions with
   | [] => []
@@ -440,13 +459,32 @@ Module dfa.
                          [((fst a), Continue x y)] ++ [(y, Empty)]
                          else [((fst a), Continue x y)]
            end ++ dfa_rules_to_regular_grammar m t
+  end. *)
+
+  Fixpoint get_transitions_from_one_state (m:t) (s: S) (l2: list A) :=
+  match l2 with
+    | [] => []
+    | a::x => if (is_final m ((dfa.next m s a))) then 
+           [(s, Continue a (dfa.next m s a))] ++ [((dfa.next m s a), Empty)]
+           else [(s, Continue a (dfa.next m s a))]
+           ++ get_transitions_from_one_state m s x
+  end.
+
+  Fixpoint dfa_rules_to_regular_grammar (m:t) (l1: list S) (l2: list A)
+  : list (S * rhs.t A S) :=
+  match l1,l2 with
+  | [],[] => []
+  | a::t,b::k => get_transitions_from_one_state m a l2 ++ dfa_rules_to_regular_grammar m t k
+  | _,_ => []
   end.
 
   Definition recgonizes (dfa: dfa.t) (l: list A) :=
     dfa.run dfa l = true.
 
   Definition dfa_to_regular_grammar (m:t): reg_grammar.g A S :=
-    reg_grammar.build_grammar (initial_state m) (dfa_rules_to_regular_grammar m (transition_rules m)).
+    reg_grammar.build_grammar (initial_state m) 
+    (dfa_rules_to_regular_grammar m (dfa.states m) (dfa.alphabet m))
+    (dfa.alphabet m) (dfa.states m).
 
   (* We can build an NFA from a DFA. *)
   Variable m : t.
@@ -456,7 +494,7 @@ Module dfa.
     [dfa.next m s t].
 
   Definition dfa_to_nfa := nfa.NFA (dfa.initial_state m) (dfa.is_final m)
-  (nfa_step) (dfa.states m)(dfa.dfa_rules_to_nfa_rules (dfa.transition_rules m)).
+  (nfa_step) (dfa.states m) (dfa.alphabet m).
 
   Lemma dfa_to_nfa_sound_aux : forall l, forall s,
   dfa.is_final m (dfa.run' (dfa.next m) l (s)) =
@@ -476,11 +514,11 @@ Module dfa.
    induction l.  
    - simpl. destruct dfa.is_final. reflexivity. reflexivity. 
    - rewrite dfa_to_nfa_sound_aux. reflexivity. 
-   Qed. 
+   Qed.
 
   (* Verifying if the DFA is a minimal DFA.                                   *)
   (* idea: a DFA is minimal iff there is no equivalent transition             *)
-  (* The first step is to check whether a pair of states is equivalent, i.e., *)
+  (* The first step is to check whether a pair of states is equivalent:       *)
   Definition check_pair_states (m:t) (s1: S) (s2: S) : list A -> bool := 
     fix rec l :=
       match l with
@@ -525,10 +563,12 @@ Module dfa.
 
   Definition get_all_equivalent_states (m:t): list S -> list S -> list A -> list (S * S) :=
     fix rec s1 s2 l :=
-      match s1 with
-      | [] => []
-      | a::t => get_equivalent_states m (a) s2 l ++ rec t s2 l
+      match s1,s2 with
+      | [],[] => []
+      | a::t,x::y => get_equivalent_states m (a) s2 l ++ rec t y l
+      | _,_ => []
     end.
+
   (* Top level function that returns pairs of equivalent states *)
   Definition check_equivalent_states (m:t) :=
     get_all_equivalent_states m (dfa.states m) (dfa.states m) (dfa.alphabet m).
@@ -568,6 +608,7 @@ Module powerset_construction.
               else rec t
     end.
     (* bugged *)
+    (*
     Fixpoint list_state (rules: list(NT * rhs.t T NT)) : list state :=
       match rules  with
       | [] => []
@@ -619,11 +660,17 @@ Module powerset_construction.
     match rules with
     | [] => []
     | a::t =>  build_state (fst a) ++ get_states t 
-  end |> nodup equiv_dec.
+  end |> nodup equiv_dec. *)
 
-  Definition build_dfa := dfa.DFA (init) (is_final) (next) (get_states (reg_grammar.rules g))
-    (get_all_rules (list_state (reg_grammar.rules g))) 
-    (reg_grammar.get_all_possible_t (reg_grammar.rules g)).
+  (*bugged *)
+  Fixpoint nt_to_state (l : list NT) : state :=
+  match l with
+    | [] => []
+    | a::t => [Some a] ++ nt_to_state t
+  end.
+
+  Definition build_dfa := dfa.DFA (init) (is_final) (next) [(nt_to_state (reg_grammar.nonterminal_symbols g))]
+    (reg_grammar.terminal_symbols g).
 
   Check build_dfa.
 
@@ -668,7 +715,9 @@ Module examples.
 
   Definition a_b_grammar : reg_grammar.g terminal.t non_terminal.t :=
     {| reg_grammar.start_symbol := non_terminal.A;
-       reg_grammar.rules := a_b_rules |}.
+       reg_grammar.rules := a_b_rules;
+       reg_grammar.terminal_symbols := [terminal.a;terminal.b];
+       reg_grammar.nonterminal_symbols := [non_terminal.A; non_terminal.B] |}.
 
   (* A few examples. *)
   Eval compute in reg_grammar.parse a_b_grammar [].
@@ -681,7 +730,7 @@ Module examples.
   (*An NFA built from the grammar given above *)
 
   Definition nfa_from_a_b_grammar := grammar_to_nfa.build_nfa_from_grammar a_b_grammar.
-  Eval compute in nfa.run nfa_from_a_b_grammar [].
+  Eval compute in nfa.path nfa_from_a_b_grammar [].
   Eval compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a;terminal.b; terminal.a].
   Eval compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a].
 
@@ -719,7 +768,6 @@ Module examples.
        dfa.is_final := a_b_is_final;
        dfa.next := a_b_next;
        dfa.states := a_b_states;
-       dfa.transition_rules := a_b_transition_rules;
        dfa.alphabet := [terminal.b;terminal.a] |}.
 
   (* Examples running the DFA. *)
@@ -748,14 +796,11 @@ Module examples.
 
   (*We can check if the automaton is a minimal automaton: *)
   Eval compute in dfa.is_minimal a_b_dfa'.
-  Eval compute in dfa.check_a_pair_states a_b_dfa (Some non_terminal.B) 
-    ([Some non_terminal.A;Some non_terminal.B])
-    (dfa.alphabet a_b_dfa).
+  Eval compute in dfa.states a_b_dfa'.
 
   (*We can build a NFA from the DFA given above :*)
 
   Definition nfa_from_dfa_a_b := dfa.dfa_to_nfa a_b_dfa.
-
   Check dfa.dfa_to_nfa.
   Check nfa_from_dfa_a_b.
   Check a_b_dfa'.
@@ -777,6 +822,7 @@ Module examples.
   (* We can also build a grammar from the automaton given above: *)
 
   Definition a_b_grammar2 := dfa.dfa_to_regular_grammar a_b_dfa'.
+  Eval compute in reg_grammar.rules a_b_grammar2.
 
   Eval compute in reg_grammar.parse a_b_grammar2 [terminal.a;terminal.b].
   Eval compute in reg_grammar.parse a_b_grammar2 [].
@@ -818,9 +864,9 @@ Module examples.
 
    Eval compute in reg_grammar.get_all_possible_t grammar_rules.
 
-  Definition grammar_example := reg_grammar.build_grammar S grammar_rules.
+  Definition grammar_example := reg_grammar.build_grammar S grammar_rules
+     [a;b;c;d] [S;S1;S2;S3;S4].
   Definition automata_example := powerset_construction.build_dfa grammar_example.
-  Eval compute in dfa.transition_rules automata_example.
 
   Eval compute in dfa.run automata_example [a;b;c;d].
   Lemma tree : dfa.recgonizes automata_example [a;b;c;d].
@@ -836,9 +882,9 @@ Module examples.
   (S4, Single d);(S4,Continue d S)].
 
   (* Another example of a DFA built from a grammar: *)
-  Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2.
+  Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2
+    [b;c;a;d] [S;S1;S2;S3;S4].
   Definition automata_example_2 := powerset_construction.build_dfa grammar_example_2.
-
 
   Eval compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
   Eval compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
@@ -846,13 +892,13 @@ Module examples.
   Eval compute in dfa.run automata_example_2 [a;c;c;b;d;d]. (*returns true*)
   Eval compute in dfa.run automata_example_2 [b;d;d;a;b;c;c].    (*returns false*)
   Eval compute in dfa.run automata_example_2 [b;b;b;b;b;b;b;d;d;a;c;c]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [b;d;d;a;c;c;b;d;d;b;d;d]. (*returns true*)
+  Eval compute in dfa.path automata_example_2 [b;d;d;a;c;c;b;d;d;b;d;d]. (*returns true*)
   Eval compute in dfa.run automata_example_2 [a;a;a;a;a;a;a;c;c]. (*returns true *)
   Eval compute in dfa.run automata_example_2 [b;a;d;a;c;c].  (*returns false*)
 
-  (* The above automaton is not minimal: *)
+  (* The above automaton is minimal: *)
   Eval compute in dfa.is_minimal automata_example_2.
-  (* Then, the list of equivalent states is an empty list. *)
+  (* Then, the list of pairs of equivalent states is an empty list. *)
   Eval compute in dfa.check_equivalent_states automata_example_2.
   (*
   Definition grammar_rules_2 : list (non_terminal1 * rhs.t terminal1 non_terminal1) :=
@@ -864,11 +910,11 @@ Module examples.
      (S, Continue d S1);(S1, Continue d S1);(S1,Continue c S2);(S2, Continue b S3);
      (S, Continue a S1);(S3, Single a);(S1, Continue a S1)].
 
-  Definition grammar := reg_grammar.build_grammar S grammar_rules2.
+  Definition grammar := reg_grammar.build_grammar S grammar_rules2
+    [a;b;c;d] [S;S1;S2;S3].
 
   Definition grammar_automaton := powerset_construction.build_dfa grammar.
 
-  Eval compute in dfa.transition_rules grammar_automaton.
   Eval compute in dfa.run grammar_automaton [d;d;b;c;a].
   Eval compute in dfa.path grammar_automaton [d;d;b;c;a].
   Eval compute in dfa.run grammar_automaton [b].
@@ -879,19 +925,18 @@ Module examples.
   (S1, Continue a S3);(S, Continue b S2); (S2, Continue b S3); (S3, Continue a S3);
   (S3, Continue b S3);(S3, Empty);(S, Continue a S)].
 
-  Definition grammar_aa_bb := reg_grammar.build_grammar S grammar_aa_bb_rules.
+  Definition grammar_aa_bb := reg_grammar.build_grammar S grammar_aa_bb_rules
+    [a;b] [S;S1;S2;S3].
 
   Eval compute in reg_grammar.parse grammar_aa_bb [a;a].
   Eval compute in reg_grammar.parse grammar_aa_bb [a;b;b].
-  Eval compute in reg_grammar.parse_aux grammar_aa_bb [a;b].
+  Eval compute in reg_grammar.parse grammar_aa_bb [a;b].
 
   Definition automata_aa_bb := powerset_construction.build_dfa grammar_aa_bb.
 
   Eval compute in dfa.run automata_aa_bb  [a;b;a;a;a;b].
   Eval compute in dfa.run2 automata_aa_bb [a;b;a;a;a;b].
   Eval compute in dfa.path automata_aa_bb [a;b;a;a;a;b].
-  Eval compute in dfa.path automata_aa_bb [a;b;a;a;a;b].
-  Eval compute in (dfa.transition_rules automata_aa_bb).
 
  (* ---------------------------------------------------------------------------------- *)
  (* A hand-made NFA for the same language.                                            *)
@@ -940,7 +985,7 @@ Module examples.
     nfa.is_final := aa_bb_is_final;
     nfa.next := aa_bb_next;
     nfa.states := [S;S1;S2;S3];
-    nfa.transition_rules := aa_bb_list_transitions |}.
+    nfa.alphabet := [a;b] |}.
 
   Eval compute in nfa.path aa_bb_nfa [a;a;b;a;a;a;a;a].
   Eval compute in nfa.run aa_bb_nfa [a;a;b;a].
@@ -951,7 +996,7 @@ Module examples.
 
   Definition test := [(S, Continue a S); (S, Single b)].
 
-  Definition grammar4 := reg_grammar.build_grammar S test.
+  Definition grammar4 := reg_grammar.build_grammar S test [a;b] [S].
 
   Eval compute in reg_grammar.rules grammar4.
 
@@ -988,11 +1033,9 @@ Module examples.
   (B, Continue a E); (C, Continue a E); (C, Continue a D); (D, Continue a F);
   (E, Continue b F); (F, Empty) ;(G, Continue c F)].
 
-  Definition gramática := reg_grammar.build_grammar A regras.
+  Definition gramática := reg_grammar.build_grammar A regras [a;b] [A;B;C;D;E;F;G].
 
   Definition automato_gramatica := powerset_construction.build_dfa gramática.
-
-  Eval compute in dfa.transition_rules automato_gramatica.
 
   Eval compute in dfa.run automato_gramatica [b;a;a;c].
   Eval compute in dfa.path automato_gramatica [b;a;a;c].
@@ -1080,11 +1123,9 @@ Module examples.
        dfa.is_final := example_is_final;
        dfa.next := example_next;
        dfa.states := [Some e.q0;Some e.q1;Some e.q2;Some e.q3;Some e.q4];
-       dfa.transition_rules := [];
        dfa.alphabet := [e.a;e.b] |}.
 
   Eval compute in dfa.run nonminimal_automaton [e.a;e.b;e.a].
   Eval compute in dfa.is_minimal nonminimal_automaton.
   Eval compute in dfa.check_equivalent_states nonminimal_automaton.
-
 End examples.

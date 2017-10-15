@@ -84,7 +84,7 @@ Section reg_grammar_lemmas.
     rewrite H1. simpl. destruct equiv_dec. 
     reflexivity. exfalso. apply c. reflexivity.
   Qed.
-  (*parei aqui*)
+
   Lemma step_rhs_some : forall t:T, forall rhs: rhs.t T NT, forall nt:NT,
   reg_grammar.step_rhs t rhs = [Some nt] <-> rhs = Continue t nt.
   Proof.
@@ -94,11 +94,9 @@ Section reg_grammar_lemmas.
     + inversion H1.
     + simpl in H1. destruct equiv_dec. inversion H1. inversion H1.
     + simpl in H1. destruct equiv_dec. rewrite <- e. inversion H1. reflexivity. inversion H1.
-  - intros. destruct rhs.
-    + inversion H1.
-    + inversion H1.
-    + simpl. destruct equiv_dec. inversion H1. reflexivity. inversion H1.
-      exfalso. apply c. rewrite H3. reflexivity.
+  - intros. rewrite H1. simpl. destruct equiv_dec. 
+    +  reflexivity.
+    +  exfalso. apply c. reflexivity. 
   Qed.
 
   Lemma step_rhs_nil: forall t:T, forall rhs: rhs.t T NT, reg_grammar.step_rhs t rhs = [] <->
@@ -226,23 +224,6 @@ Section reg_grammar_lemmas.
     + left. simpl. auto.
   Qed.
 
-  (* -- (In (None) (l) prob; same with inductive proposition.
-   Lemma is_final_true_forall : forall g:reg_grammar.g T NT, forall l: list (option NT),
-  reg_grammar.is_final (reg_grammar.rules g) l = true <-> (reg_grammar.is_final (reg_grammar.rules g) l = true 
-  \/  (In (None) (l) \/ exists n,(In (Some n) l /\ reg_grammar.is_final (reg_grammar.rules g) (l) = true)))).
-  Proof.
-  intros.
-  split.
-  - intros. destruct l. left. assumption.
-    right. destruct o. right. exists n. split.
-    + simpl; auto.
-    + assumption.
-    + left. simpl. auto.
-    - intros. destruct l. destruct H1 as [left | right]. assumption. 
-      + destruct right as [left' | right']. inversion left'. destruct right'. destruct H1. inversion H1.
-      + destruct H1 as [left | right]. assumption. destruct right as [left' | right']. destruct o.
-      rewrite H1. reflexivity. Admitted. *)
-
   (*The following lemmas states properties about the soundness of the grammar parser *)
   Lemma parse_companion : forall grammar, forall l, reg_grammar.parse grammar l = true \/ 
   reg_grammar.parse grammar l = false.
@@ -251,41 +232,29 @@ Section reg_grammar_lemmas.
   destruct reg_grammar.parse;auto.
   Qed.
 
-  (* This inductive proposition states when the parser for a given grammar in a list of terminal     *)
-  (* symbols should return true. This comes straight from parse's definition, where it should return *)
-  (* true if for all list of terminal symbols, from the starting symbol of the grammar, the parse'   *)
-  (* returns a accepting state (which means it was possible to derive this list.                     *)
-  Inductive parse_true (g: reg_grammar.g T NT) : list T -> Prop :=
-  | parse_t : forall l: list T,
-                 ([Some (reg_grammar.start_symbol g)] |> reg_grammar.parse' (reg_grammar.rules g) l |> 
-                  reg_grammar.is_final (reg_grammar.rules g) = true) -> parse_true g l.
-
   (*This lemma states that for all list of terminal symbols, the parse on those lists will return true iff it *)
   (* is in agreement with the conditions where the parser should return true, stated in parse_true. *)
   Lemma parse_returns_true_forall : forall grammar, forall l: list T,
-  reg_grammar.parse grammar l = true <-> parse_true grammar l.
+  reg_grammar.parse grammar l = true <-> ([Some (reg_grammar.start_symbol grammar)] 
+                  |> reg_grammar.parse' (reg_grammar.rules grammar) l |> 
+                  reg_grammar.is_final (reg_grammar.rules grammar) = true).
   Proof.
   intros.
   split.
-  - intros. apply parse_t. rewrite <- H1. unfold reg_grammar.parse. reflexivity.
-  - intros. destruct H1. rewrite <- H1. unfold reg_grammar.parse. reflexivity.
+  - intros.  rewrite <- H1. unfold reg_grammar.parse. reflexivity.
+  - intros. rewrite <- H1. unfold reg_grammar.parse. reflexivity.
   Qed.
-
-  (*following the idea presented above, we can define the following proposition as the proposition *)
-  (*that states when the parser should return false:                                               *)
-  Inductive parse_false (g: reg_grammar.g T NT) : list T -> Prop :=
-  | parse_f : forall l,
-                 ([Some (reg_grammar.start_symbol g)] |> reg_grammar.parse' (reg_grammar.rules g) l |> 
-                  reg_grammar.is_final (reg_grammar.rules g) = false) -> parse_false g l.
 
   (*Now, the lemma that states the parser should return false iff it meets the requirements to return false: *)
   Lemma parse_returns_false_forall : forall grammar, forall l: list T,
-  reg_grammar.parse grammar l = false <-> parse_false grammar l.
+  reg_grammar.parse grammar l = false <-> ([Some (reg_grammar.start_symbol grammar)] 
+                  |> reg_grammar.parse' (reg_grammar.rules grammar) l |> 
+                  reg_grammar.is_final (reg_grammar.rules grammar) = false).
   Proof.
   intros.
   split.
-  - intros. apply parse_f. rewrite <- H1. unfold reg_grammar.parse. reflexivity.
-  - intros. destruct H1. rewrite <- H1. reflexivity.
+  - intros. rewrite <- H1. unfold reg_grammar.parse. reflexivity.
+  - intros.  rewrite <- H1. unfold reg_grammar.parse. reflexivity.
   Qed.
 
 End reg_grammar_lemmas.
@@ -398,9 +367,33 @@ Section dfa_lemmas.
    -  simpl. destruct dfa.is_final. reflexivity. reflexivity. 
    - rewrite dfa_to_nfa_sound_aux. reflexivity. Qed. 
 
+  Lemma minimal_check_soundness : 
+    dfa.is_minimal (m) = true <-> dfa.has_no_equivalent_states m (dfa.states m) (dfa.states
+    m) (dfa.alphabet m) = false.
+  Proof.
+  split.
+  - intros. unfold dfa.is_minimal in H1. 
+    destruct dfa.has_no_equivalent_states. 
+    simpl in H1. inversion H1. reflexivity.
+  - intros. unfold dfa.is_minimal. destruct dfa.has_no_equivalent_states.
+    inversion H1.
+    simpl. reflexivity.
+  Qed.
+
+  Lemma has_no_equivalent_states_sound : forall s,forall l,
+    dfa.has_no_equivalent_states m s s l = true <-> exists a: NT, 
+    In a s /\ dfa.check_a_pair_states m (a) s l = true.
+  Proof.
+  intros.
+  split.
+  - intros. destruct s.
+    + inversion H1.
+    + unfold dfa.has_no_equivalent_states in H1. exists n. split. simpl;auto.
+      simpl in H1. rewrite <- H1. unfold dfa.check_a_pair_states.
+  Admitted.
 End dfa_lemmas.
 
-Section nfa_lemmas (* under construction *).
+Section nfa_lemmas 
   Variables (S A : Type).
   Variable nfa : nfa.t S A.
   Context `{EqDec S eq} `{EqDec A eq}.

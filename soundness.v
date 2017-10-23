@@ -2,6 +2,7 @@ Require Import main.
 Require Import Classes.EquivDec.
 Require Import List.
 Require Import Bool.
+Require Import ListSet.
 Import rhs.exports.
 Import ListNotations.
 
@@ -42,8 +43,8 @@ Section reg_grammar_lemmas.
   Context  `{EqDec T eq} `{EqDec NT eq}.
   (*The following lemma states that a grammar returned by build_grammar shall has the start *)
   (*symbol and the rules passed as the parameters.                                          *)
-    Lemma build_grammar_sound : forall nt:NT, forall rules:list (NT * rhs.t T NT),
-    forall alphabet: list T, forall nonterminals: list NT,
+    Lemma build_grammar_sound : forall nt:NT, forall rules: set (NT * rhs.t T NT),
+    forall alphabet: set T, forall nonterminals: set NT,
     reg_grammar.build_grammar nt rules alphabet nonterminals = {|
       reg_grammar.start_symbol := nt;
       reg_grammar.rules := rules; 
@@ -54,9 +55,9 @@ Section reg_grammar_lemmas.
 
   (* The following lemma states that the function step_rhs is sound. The step_rhs function checks if given *)
   (* the RHS of a derivation rule and a terminal symbol, the rule can be used to derive this symbol.       *)
-  (* According to its definition, the resulting list is empty if the RHS is empty or the terminal symbol   *)
+  (* According to its definition, the resulting set is empty if the RHS is empty or the terminal symbol   *)
   (* differs from the one that the RHS has.                                                                *)
-  (* This lemma states that for all executions of this function, it will return either an empty list,      *)
+  (* This lemma states that for all executions of this function, it will return either an empty set,      *)
   (* [None], which means a Rule "Single t" could be used or [Some nt], which means that a rule             *)
   (* "Continue t nt" was used to derive the given "t"                                                      *)
   Lemma step_rhs_sound : forall t:T, forall rhs: rhs.t T NT, reg_grammar.step_rhs t rhs = [] \/
@@ -199,7 +200,7 @@ Section reg_grammar_lemmas.
   Qed.
 
   (*The following lemma state that the is_final function may always return true or false*)
-  Lemma is_final_check : forall r:list (NT * rhs.t T NT),forall l:list (option NT), reg_grammar.is_final r l = true \/ 
+  Lemma is_final_check : forall r:set (NT * rhs.t T NT),forall l:set (option NT), reg_grammar.is_final r l = true \/ 
   reg_grammar.is_final r l = false.
  Proof.
     intros r l.
@@ -316,7 +317,7 @@ Section dfa_lemmas.
   Lemma dfa_to_regular_grammar_sound: forall m:dfa.t NT T, 
   dfa.dfa_to_regular_grammar m
   = {| reg_grammar.start_symbol := (dfa.initial_state m);
-      reg_grammar.rules := (dfa.dfa_rules_to_regular_grammar m (dfa.states m) (dfa.alphabet m));
+      reg_grammar.rules := (dfa.dfa_transitions_to_grammar_rules m (dfa.states m) (dfa.alphabet m));
       reg_grammar.terminal_symbols := (dfa.alphabet m); 
       reg_grammar.nonterminal_symbols := (dfa.states m)|}.
   Proof.
@@ -368,32 +369,32 @@ Section dfa_lemmas.
    - rewrite dfa_to_nfa_sound_aux. reflexivity. Qed. 
 
   Lemma minimal_check_soundness : 
-    dfa.is_minimal (m) = true <-> dfa.has_no_equivalent_states m (dfa.states m) (dfa.states
+    dfa.is_minimal (m) = true <-> dfa.has_equivalent_states m (dfa.states m) (dfa.states
     m) (dfa.alphabet m) = false.
   Proof.
   split.
   - intros. unfold dfa.is_minimal in H1. 
-    destruct dfa.has_no_equivalent_states. 
+    destruct dfa.has_equivalent_states. 
     simpl in H1. inversion H1. reflexivity.
-  - intros. unfold dfa.is_minimal. destruct dfa.has_no_equivalent_states.
+  - intros. unfold dfa.is_minimal. destruct dfa.has_equivalent_states.
     inversion H1.
     simpl. reflexivity.
   Qed.
 
-  Lemma has_no_equivalent_states_sound : forall s,forall l,
-    dfa.has_no_equivalent_states m s s l = true <-> exists a: NT, 
+  Lemma has_equivalent_states_sound : forall s,forall l,
+    dfa.has_equivalent_states m s s l = true <-> exists a: NT, 
     In a s /\ dfa.check_a_pair_states m (a) s l = true.
   Proof.
   intros.
   split.
   - intros. destruct s.
     + inversion H1.
-    + unfold dfa.has_no_equivalent_states in H1. exists n. split. simpl;auto.
+    + unfold dfa.has_equivalent_states in H1. exists n. split. simpl;auto.
       simpl in H1. rewrite <- H1. unfold dfa.check_a_pair_states.
   Admitted.
 End dfa_lemmas.
 
-Section nfa_lemmas 
+Section nfa_lemmas. 
   Variables (S A : Type).
   Variable nfa : nfa.t S A.
   Context `{EqDec S eq} `{EqDec A eq}.
@@ -423,6 +424,12 @@ Section nfa_lemmas
   split.
   - intros. rewrite <- H1. reflexivity.
   - intros. unfold nfa.run. inversion H1. reflexivity.
+  Qed.
+
+  (* We have that the DFA built from a NFA is correct *)
+  Lemma nfa_to_dfa: forall l, nfa.run nfa l = dfa.run (nfa_to_dfa.build_dfa_from_nfa nfa) l.
+  Proof.
+  reflexivity.
   Qed.
 
 End nfa_lemmas.

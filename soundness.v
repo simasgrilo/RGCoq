@@ -5,6 +5,7 @@ Require Import Bool.
 Require Import ListSet.
 Import rhs.exports.
 Import ListNotations.
+Import nfa_epsilon_transitions.exports.
 
 (*Note: compile main.v before running this .v file *)
 
@@ -47,9 +48,9 @@ Section reg_grammar_lemmas.
     forall alphabet: set T, forall nonterminals: set NT,
     reg_grammar.build_grammar nt rules alphabet nonterminals = {|
       reg_grammar.start_symbol := nt;
-      reg_grammar.rules := rules; 
-      reg_grammar.terminal_symbols := alphabet;
-      reg_grammar.nonterminal_symbols := nonterminals |}.
+      reg_grammar.rules := add_list_to_set rules; 
+      reg_grammar.terminal_symbols := add_list_to_set alphabet;
+      reg_grammar.nonterminal_symbols := add_list_to_set nonterminals |}.
   Proof.
   intros. unfold reg_grammar.build_grammar. reflexivity. Qed.
 
@@ -313,25 +314,15 @@ Section dfa_lemmas.
       unfold dfa.run. unfold reg_grammar.parse;unfold powerset_construction.build_dfa.
       reflexivity.
     Qed.
-
+  (*TODO the below lemma: add_list_to_set necessary? *)
   Lemma dfa_to_regular_grammar_sound: forall m:dfa.t NT T, 
   dfa.dfa_to_regular_grammar m
   = {| reg_grammar.start_symbol := (dfa.initial_state m);
-      reg_grammar.rules := (dfa.dfa_transitions_to_grammar_rules m (dfa.states m) (dfa.alphabet m));
-      reg_grammar.terminal_symbols := (dfa.alphabet m); 
-      reg_grammar.nonterminal_symbols := (dfa.states m)|}.
+      reg_grammar.rules := add_list_to_set (dfa.dfa_transitions_to_grammar_rules m (dfa.states m) (dfa.alphabet m));
+      reg_grammar.terminal_symbols := add_list_to_set (dfa.alphabet m); 
+      reg_grammar.nonterminal_symbols := add_list_to_set(dfa.states m)|}.
   Proof.
   intros. reflexivity. Qed.
-
-  (* Problem: the transition rules of the DFA is not being used explicitely in the            *)
-  (* next function of the DFA. Ou vice-versa, creio que é porque a lista pode não corresponder*)
-  (* à função next do autômato.                                                               *)
-  (* TODO: Lemma parser_and_dfa: forall l, dfa.run (m) l = 
-  reg_grammar.parse (dfa.dfa_to_regular_grammar m) l.
-  Proof.
-  intros.
-  unfold dfa.dfa_to_regular_grammar. unfold dfa.run.
-  destruct l. Abort. *)
 
   (* Lemmas about NFAs built from DFAs *)
 
@@ -381,14 +372,16 @@ Section dfa_lemmas.
     simpl. reflexivity.
   Qed.
 
+  (*TODO*)
   Lemma has_equivalent_states_sound : forall s,forall l,
     dfa.has_equivalent_states m s s l = true <-> exists a: NT, 
-    In a s /\ dfa.check_a_pair_states m (a) s l = true.
+     In a s /\ dfa.check_a_pair_states m (a) s l = true.
   Proof.
   intros.
   split.
   - intros. destruct s.
     + inversion H1.
+
     + unfold dfa.has_equivalent_states in H1. exists n. split. simpl;auto.
       simpl in H1. rewrite <- H1. unfold dfa.check_a_pair_states.
   Admitted.
@@ -404,8 +397,6 @@ Section nfa_lemmas.
     intros.
     destruct nfa.run;auto.
     Qed.
-
-(* TODO *)
 
   (* The NFA returns true iff it reaches a possible final state after a run. *)
   Lemma nfa_returns_true: forall l:list A, nfa.run nfa l = true
@@ -433,3 +424,42 @@ Section nfa_lemmas.
   Qed.
 
 End nfa_lemmas.
+
+Section nfa_e_lemmas.
+  Variables (ST A : Type).
+  Variable nfa_e : nfa_epsilon.t ST A.
+  Context `{EqDec ST eq} `{EqDec A eq}.
+
+  (* Lemma next_state_w_e_sound: forall l: set (nfa_epsilon_transitions.ep_trans ST A), 
+  forall t:ST, forall a: A, forall x
+  set_mem equiv_dec (t) (nfa_epsilon.next_state_w_e l)) = true <-> *)
+
+  Lemma next_state_w_e_sound: forall s: set (nfa_epsilon_transitions.ep_trans ST A), nfa_epsilon.next_state_w_e s = [] \/ 
+  exists a: ST, In (a) (nfa_epsilon.next_state_w_e s).
+  intros. destruct s.
+  - left;reflexivity.
+  - right. simpl. Admitted.
+
+  Lemma ep_trans_is_epsilon_sound:forall s:nfa_epsilon_transitions.ep_trans ST A,
+  nfa_epsilon.ep_trans_is_epsilon s = true <-> (exists t:ST, s = Epsilon  t).
+  Proof.
+  intros.
+  split.
+  - intros. destruct s. exists s. reflexivity.
+  simpl. inversion H1.
+  - intros. destruct H1. rewrite H1. reflexivity.
+  Qed.
+
+  (* Given a number of steps taken in the search (the depth of the search) *)
+  (* the function bounded_search will always end, returning either true or *)
+  (* false                                                                 *)
+  Lemma bounded_search_nfa_e_sound : forall n:nat, forall i j : ST,
+    nfa_epsilon.bounded_search nfa_e n i j = true \/ 
+    nfa_epsilon.bounded_search nfa_e n i j = false.
+  Proof.
+  intros. destruct nfa_epsilon.bounded_search.
+  - left;reflexivity.
+  - right;reflexivity.
+  Qed.
+
+

@@ -12,7 +12,7 @@ Module non_terminal.
     Inductive t:Type :=
       A | B.
 
-Obligation Tactic := unfold complement, equiv ; program_simpl.
+    Obligation Tactic := unfold complement, equiv ; program_simpl.
     Program Instance eqdec : EqDec t eq :=
       { equiv_dec x y :=
           match x, y with
@@ -21,6 +21,7 @@ Obligation Tactic := unfold complement, equiv ; program_simpl.
           | A, B | B, A => in_right
           end
       }.
+
   End non_terminal.
 
   Module terminal.
@@ -336,7 +337,7 @@ Obligation Tactic := unfold complement, equiv ; program_simpl.
   (* The set of states of the DFA built from a NFA *)
   Eval compute in (dfa.states aa_bb_dfa).
   Eval compute in (dfa.is_minimal aa_bb_dfa).
-  Eval compute in dfa.path aa_bb_dfa [a;a].
+  Eval compute in dfa.path aa_bb_dfa [a;a;a;a].
   Eval compute in dfa.run aa_bb_dfa [a;a;a;a;b;b].
 
   (*NEW we can also build a grammar from the NFA defined above *)
@@ -488,7 +489,7 @@ Module nfa_e_test.
 Inductive test := a | b | c.
  Inductive test2 := q0 | q1 | q2.
 
-  Obligation Tactic := unfold complement, equiv ; program_simpl.
+  
   Program Instance eqdec : EqDec test eq :=
       { equiv_dec x y :=
           match x, y with
@@ -513,10 +514,9 @@ Inductive test := a | b | c.
   match state with
   | q0 => [Epsilon q1;Goes a q0]
   | q1 => [Goes b q1; Epsilon q2]
-  | q2 => [Goes c q2]
+  (*| q2 => [Goes c q2]*)
+  | q2 => [Goes c q2;Epsilon q0] 
   end.
-
-  Eval compute in (nfa_epsilon.next_state_w_e (next_test q0)).
 
   Definition is_f (s:test2) :=
   match s with
@@ -539,6 +539,7 @@ Inductive test := a | b | c.
   (* epsilon transitions                                                 *)
   Definition cool_nfa_e := nfa_epsilon.nfa_e_to_nfa nfa_e.
   Eval compute in nfa.run cool_nfa_e [a;a;a;b;c].
+  Eval compute in nfa.run cool_nfa_e [c].
 
   (* Another example:                                                    *)
   Definition next2 (state: test2): set (nfa_epsilon_transitions.ep_trans test2 test) :=

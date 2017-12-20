@@ -4,7 +4,7 @@ Require Import Classes.EquivDec.
 Require Import Coq.Program.Program.
 Require Import Bool.
 Require Import ListSet.
-Require Import Nat.
+
 (*leave the type inference at maximum level in Coq, not being necessary to declare the type*)
 (*of parameters of functions, as seen in https://coq.inria.fr/cocorico/CoqNewbieQuestions  *)
 
@@ -180,11 +180,7 @@ Module reg_grammar.
     | Single t' => if t == t' then [None] else []
     | Continue t' nt => if t == t' then [Some nt] else []
     end.
-  (*TODO da última reunião *)
 
-  (* coq2tex *)
-  (* grammarly *)
-  (*mandar email pra faperj *)
   (* Finds all the productions for a given nonterminal. *)
   (*Note: this list will never be empty, if the nt symbol belongs to the grammar   *)
   Definition getRHS `{EqDec NT eq}
@@ -295,8 +291,6 @@ Module nfa.
 
     (* The path function returns all the states the automata have been while consuming the *)
     (* word given to be checked whether it is recognizable by the automata or not.         *)
-    (*TODO*)
-    (* tirar ocorrência de lista vazia (ou não) *)
     Definition get_trace (m:t) : list A -> list S -> list (list S) -> list (list S):=
       fix rec l acc res :=
         match l with
@@ -524,7 +518,7 @@ Module nfa_epsilon.
             | _ => next_state_w_e y
             end
   end.
-  (*get all states reachable from a given state without epsilon transitions *)
+  (*get all transitions of a given set of states that are not epsilon transitions *)
   Fixpoint get_goes_transitions 
   (t: set (nfa_epsilon_transitions.ep_trans ST A))  :=
   match t with
@@ -568,29 +562,11 @@ Module nfa_epsilon.
   | a::t => set_add equiv_dec ((x,a)) (create_transition x t)
   end.
 
-  (* Gets all transitions from q, grabbing transitions from the next state linked    *)
-  (* by an epsilon transition (and this next state must not have epsilon transitions *)
-  (*
-  Fixpoint grab_transitions (m:t) (q:ST) (s: set (nfa_epsilon_transitions.ep_trans ST A))
-  : set (ST * nfa_epsilon_transitions.ep_trans ST A) :=
-  match s with
-  | [] => []
-  | a::t => match a with
-            | Epsilon x => if state_has_no_e_transitions m x 
-                           then set_union equiv_dec (create_transition
-                                (q) (nfa_epsilon.next m x))
-                                (grab_transitions m q t) 
-                                else grab_transitions m q t
-            | Goes a b => set_add equiv_dec ((q,Goes a b)) (grab_transitions m q t)
-            end
-  end. *)
-
   (* Let us define a NFA with epsilon transitions: *)
   Variable m: nfa_epsilon.t.
 
   (* Then we have to apply this condition to every state in the NFA: *)
   (* We define a search procedure that reaches all states of the NFA: *)
-  (* Have to check back and forth *)
   Fixpoint bounded_search (n:nat) (x y: ST) :=
   match n with
   | O => if x == y then true else false
@@ -598,29 +574,33 @@ Module nfa_epsilon.
             existsb (fun x => bounded_search k x y) 
                     (next_state_w_e (nfa_epsilon.next m x))
   end.
-
+  (* TODO len(s) e o fato de nao incluir o estado atual no fecho epsilon ja que pego separadamente as transições *)
+  (* definidas para algum símbolo do alfabeto *)
   Fixpoint get_all_reachable_states_w_e (x:ST) (s: set ST): set ST :=
   match s with
   | [] => []
-  | a::t => if (x<>a) then
-               if (bounded_search (length(nfa_epsilon.states m)) 
-                               (x) a)
+  | a::t => if (bounded_search (length(s) + 1)(x) a)
                then set_add equiv_dec (a) (get_all_reachable_states_w_e x t)
-               else get_all_reachable_states_w_e x t
             else get_all_reachable_states_w_e x t
   end.
 
   (* Calculates the epsilon closure of a given state *)
   Definition epsilon_clos (x:ST) := get_all_reachable_states_w_e x 
                           (nfa_epsilon.states m).
-  (* Gets all transitions that aren't epsilon transitions from a state  *)
+  (* Gets all transitions that aren't epsilon transitions from the neighborhood  *)
+  (* of a state                                                                  *)
   Definition next_from_state (x: ST) := get_goes_transitions (nfa_epsilon.next m x).
  
   (* Gets all transitions that aren't epsilon transitions from a set of *)
   (* states                                                             *)
   Definition next_from_states (s: set ST) :=
     flat_map (next_from_state) s.
-  Check next_from_states.
+
+  (* To make a run on a nfa with epsilon transitions, we first convert    *)
+  (* it to a conventional NFA : By calculating the epsilon closure of a   *)
+  (* state, we remove the epsilon transitions of the NFA                  *)
+  (* This function calculates the epsilon closure for all states in a set *)
+  (* of states                                                            *)
   (* With the epsilon closure of a state, we can extract the next from the NFA:*)
   Fixpoint next_from_epsilon_clos (x:set ST) :=
   match x with
@@ -629,36 +609,24 @@ Module nfa_epsilon.
             (epsilon_clos a |> next_from_states |> create_transition a)
             (next_from_epsilon_clos t)
   end.
-  Check next_from_epsilon_clos.
 
-  Fixpoint get_normal_rules (s: set ST) := 
-  match s with
-  | [] => []
-  | a::t => set_union equiv_dec (create_transition a (get_goes_transitions(nfa_epsilon.next m a)))
-                              (get_normal_rules t)
-  end.
+
+
 
   (* To make a run on a nfa with epsilon transitions, we first convert    *)
   (* it to a conventional NFA : By calculating the epsilon closure of a   *)
-  (* state, we remove the epsilon transitions of the NFA                  *)
-  (* This function calculates the epsilon closure for all states in a set *)
-  (* of states                                                            *)
-  (* Fixpoint next_nfa (s: set ST) :=
-  match s with 
-  | [] => []
-  | a::t => set_union equiv_dec (epsilon_clos a) (next_nfa t)
-  end.*)
-  (* This function calculates the epsilon closure and extracs all transitions: *)
-  (* uniting them with the "goes" rules that were already in the NFA *)
-  Definition next_nfa := 
-    set_union equiv_dec (next_from_epsilon_clos (nfa_epsilon.states m))
-              (get_normal_rules (nfa_epsilon.states m)).
-  Check next_nfa.
-  (*TODO transitions : *)
+  (* state, we remove the epsilon transitions of the NFA appyling the algo*)
+  (* rithm of converting a NFA with epsilon transitions to a "normal" NFA   *)
+
+  (* This function calculates the epsilon closure and extracs all transitions:   *)
+  (* defined for a given symbol of the NFA's alphabet for every state in the     *)
+  (* NFA's set of states                                                         *)
+  Definition next_nfa := next_from_epsilon_clos (nfa_epsilon.states m).
+
   (* The next step is to retrieve from the "next_nfa" function all states *)
   (* that has s as the outgoing state with a                              *)
-  (* The next function retrieves those states *)
-  Fixpoint step (s:ST) (a:A) 
+  (* The next function retrieves those states                             *)
+  Fixpoint step (s:ST) (a:A) (*parei aqui pdf*)
   (x:set (ST * nfa_epsilon_transitions.ep_trans ST A)) :=
   match x with
   | [] => []
@@ -673,8 +641,9 @@ Module nfa_epsilon.
                         else  (step s a l')
              end
   end.
+  
   Check step.
-  (* Therefore, the function below converts the transitions to a NFA with no *)
+  (* Therefore, the function below converts the transitions to a NFA with no  *)
   (* epsilon rules                                                            *)
   Definition step_nfa (a:A) (s:ST) : set ST :=
     step s a next_nfa.
@@ -734,7 +703,7 @@ Module dfa.
       fix rec l s res :=
         match l with
         | [] => res
-        | t::l => (res ++ [next m s t] ) |> rec l (next m s t)
+        | t::l => (res ++ [next m s t]) |> rec l (next m s t)
         end.
     Definition path (m:t) (l:list A) : list S :=
       get_trace m l (initial_state m) [initial_state m] (*|> nodup equiv_dec*).
@@ -841,7 +810,7 @@ Module dfa.
   (* Verifying if the DFA is a minimal DFA.                                   *)
   (* idea: a DFA is minimal iff there is no equivalent transition             *)
   (* The first step is to check whether a pair of states is equivalent:       *)
-  Definition check_pair_states (m:t) (s1: S) (s2: S) : list A -> bool := 
+  Definition check_pair_states (m:t) (s1: S) (s2: S) : set A -> bool := 
     fix rec l :=
       match l with
       | [] => true
@@ -862,7 +831,7 @@ Module dfa.
 
   (* Then we can check for all states of the automaton if there is no equivale-*)
   (* nt state in the automaton.                                                *)
-  Definition has_equivalent_states (m:t): list S -> list S -> list A -> bool :=
+  Definition has_equivalent_states (m:t): set S -> set S -> set A -> bool :=
     fix rec s1 s2 l :=
       match s1 with
       | [] => false
@@ -873,7 +842,7 @@ Module dfa.
     negb (has_equivalent_states  m (dfa.states m) (dfa.states m) (dfa.alphabet m)).
 
   (* We can also return the pair of states that are equivalent *)
-  Fixpoint get_equivalent_states (m:t) (s1: S) (s2: list S) (l:list A) : set (S * S) :=
+  Fixpoint get_equivalent_states (m:t) (s1: S) (s2: set S) (l:set A) : set (S * S) :=
     match s2 with
     | [] => []
     | b::y => if s1 <> b then
@@ -883,7 +852,7 @@ Module dfa.
               else get_equivalent_states m s1 y l
     end.
 
-  Definition get_all_equivalent_states (m:t): list S -> list S -> list A -> set (S * S) :=
+  Definition get_all_equivalent_states (m:t): set S -> set S -> set A -> set (S * S) :=
     fix rec s1 s2 l :=
       match s1,s2 with
       | [],[] => []
@@ -918,12 +887,9 @@ Module nfa_to_dfa.
     nfa.verify_final_state' (m) s.
   Definition dfa_alphabet := nfa.alphabet m.
   Definition dfa_next (s:state) (a:A) : state := nfa.step m s a.
-  Check dfa_next.
-  (* busca em largura! DONE *)
-  (*DONE set_add \passar geral pra set (tenso no caso das regras) OK*)
-  
-  (* Gets all reachable states from a given state *)
-  Fixpoint list_states (s:state) (l: list A) :  set state :=
+
+  (* Gets all next states from a given state *)
+  Fixpoint list_states (s:state) (l: set A) :  set state :=
     match l with
     | [] => []
     | a::t => if (dfa_next s a <> []) then
@@ -933,8 +899,7 @@ Module nfa_to_dfa.
 
   (* We compute the powerset of the states of the NFA : *)
   Definition power_states := powerset (nfa.states m).
-  Check power_states.
-  (* set_eq {A} `{EqDec A eq} (s1 s2 : set A) *)
+
   (* And we want only the states in the powerset that are reachable from the *)
   (* initial state:                                                          *)
   Fixpoint bounded_search (n:nat) (x y: state) :=
@@ -944,8 +909,6 @@ Module nfa_to_dfa.
             existsb (fun x => bounded_search k x y) (list_states x (nfa.alphabet m))
   end.
 
-  (* TODO: proof in the .PDF that the search works?. *)
-  (* PROBLEM: magic number? *)
   Fixpoint get_all_reachable_states (s: set state): set state :=
   match s with
   | [] => []
@@ -985,7 +948,7 @@ Module powerset_construction.
 
     Definition alphabet := (reg_grammar.terminal_symbols g).
 
-    (*TODO same done with nfa to DFA *)
+
     (*Gets nonterminal symbols and converts them to the same type of the states of the resulting  *)
     Fixpoint nt_to_state (l : set NT) : set (option NT) :=
     match l with
@@ -1005,7 +968,7 @@ Module powerset_construction.
     (* Again, We compute the powerset of the states of the NFA (created "on the fly" from the grammar: *)
     Definition power_states := powerset states.
     Check power_states.
-    
+
     (* Gets all reachable states from the state s *)
     Fixpoint list_states (s:state) (l: list T) :  set state :=
       match l with
@@ -1025,7 +988,7 @@ Module powerset_construction.
               existsb (fun x => bounded_search k x y) (list_states x (reg_grammar.terminal_symbols g))
     end.
 
-    (* TODO: proof in the .PDF that the search works. *)
+  
     Fixpoint get_all_reachable_states (s: set state): set state :=
     match s with
     | [] => []
@@ -1042,59 +1005,3 @@ Module powerset_construction.
 
   End powerset_construction.
 End powerset_construction.
-
-Module regular_expression.
-  Section regular_expression.
-
-  (* Incomplete *)
-
-  Inductive reg_exp (T : Type) : Type :=
-  | EmptySet : reg_exp T
-  | EmptyStr : reg_exp T
-  | Char : T -> reg_exp T
-  | App : reg_exp T -> reg_exp T -> reg_exp T
-  | Union : reg_exp T -> reg_exp T -> reg_exp T
-  | Star : reg_exp T -> reg_exp T.
-
-  Arguments EmptySet {T}.
-  Arguments EmptyStr {T}.
-  Arguments Char {T} _.
-  Arguments App {T} _ _.
-  Arguments Union {T} _ _.
-  Arguments Star {T} _.
-
-  Inductive exp_match {T} : list T -> reg_exp T -> Prop :=
-  | MEmpty : exp_match [] EmptyStr
-  | MChar : forall x, exp_match [x] (Char x)
-  | MApp : forall s1 re1 s2 re2,
-             exp_match s1 re1 ->
-             exp_match s2 re2 ->
-             exp_match (s1 ++ s2) (App re1 re2)
-  | MUnionL : forall s1 re1 re2,
-                exp_match s1 re1 ->
-                exp_match s1 (Union re1 re2)
-  | MUnionR : forall re1 s2 re2,
-                exp_match s2 re2 ->
-                exp_match s2 (Union re1 re2)
-  | MStar0 : forall re, exp_match [] (Star re)
-  | MStarApp : forall s1 s2 re,
-                 exp_match s1 re ->
-                 exp_match s2 (Star re) ->
-                 exp_match (s1 ++ s2) (Star re).
-
-  Notation "s =~ re" := (exp_match s re) (at level 80).
-
-  Fixpoint re_chars {T} (re : reg_exp T) : list T :=
-    match re with
-    | EmptySet => []
-    | EmptyStr => []
-    | Char x => [x]
-    | App re1 re2 => re_chars re1 ++ re_chars re2
-    | Union re1 re2 => re_chars re1 ++ re_chars re2
-    | Star re => re_chars re
-    end.
-
-  Inductive test := a | b.
-
-  End regular_expression.
-End regular_expression.

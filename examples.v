@@ -1,12 +1,7 @@
 Require Import main.
-Require Import List.
 Import ListNotations.
 Import rhs.exports.
 Import nfa_epsilon_transitions.exports.
-Require Import Classes.EquivDec.
-Require Import Coq.Program.Program.
-Require Import Bool.
-Require Import ListSet.
 
 Module non_terminal.
     Inductive t:Type :=
@@ -52,22 +47,26 @@ Module non_terminal.
        reg_grammar.nonterminal_symbols := [non_terminal.A; non_terminal.B] |}.
 
   (* A few examples. *)
-  Eval compute in reg_grammar.parse a_b_grammar [].
-  Eval compute in reg_grammar.parse a_b_grammar [terminal.a].
-  Eval compute in reg_grammar.parse a_b_grammar [terminal.a; terminal.a].
-  Eval compute in reg_grammar.parse a_b_grammar [terminal.b; terminal.b].
-  Eval compute in reg_grammar.parse a_b_grammar [terminal.a; terminal.b].
-  Eval compute in reg_grammar.parse a_b_grammar [terminal.b; terminal.a].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [terminal.a].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [terminal.a; terminal.a].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [terminal.b; terminal.b].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [terminal.a; terminal.b].
+  Eval vm_compute in reg_grammar.parse a_b_grammar [terminal.b; terminal.a].
 
   (*An NFA built from the grammar given above *)
 
   Definition nfa_from_a_b_grammar := grammar_to_nfa.build_nfa_from_grammar a_b_grammar.
-  Eval compute in nfa.path nfa_from_a_b_grammar [].
-  Eval compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a;terminal.b; terminal.a].
-  Eval compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a].
-  Eval compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.b].
-  Eval compute in nfa.run nfa_from_a_b_grammar [terminal.b; terminal.a].
-  Eval compute in nfa.states nfa_from_a_b_grammar.
+  Eval vm_compute in nfa.path nfa_from_a_b_grammar [].
+  Eval vm_compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a;terminal.b; terminal.a].
+  Eval vm_compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.a].
+  Eval vm_compute in nfa.run nfa_from_a_b_grammar [terminal.a; terminal.b].
+  Eval vm_compute in nfa.run nfa_from_a_b_grammar [terminal.b; terminal.a].
+  Eval vm_compute in nfa.states nfa_from_a_b_grammar.
+  Definition back := nfa.build_grammar_from_nfa nfa_from_a_b_grammar.
+  Check back.
+  Eval vm_compute in (reg_grammar.rules back).
+  Eval vm_compute in reg_grammar.parse back [terminal.b; terminal.a].
 
   (* A hand rolled DFA for the same language. *)
   Definition a_b_next (s : option non_terminal.t) (t : terminal.t) : option non_terminal.t :=
@@ -104,41 +103,41 @@ Module non_terminal.
   Extraction a_b_dfa.
 
   (* Examples running the DFA. *)
-  Eval compute in dfa.run a_b_dfa [].
-  Eval compute in dfa.run a_b_dfa [terminal.a].
-  Eval compute in dfa.run a_b_dfa [terminal.b].
-  Eval compute in dfa.run a_b_dfa [terminal.a; terminal.a].
-  Eval compute in dfa.run a_b_dfa [terminal.b; terminal.b].
-  Eval compute in dfa.run a_b_dfa [terminal.a; terminal.b].
-  Eval compute in dfa.run a_b_dfa [terminal.b; terminal.b;terminal.a].
-  Eval compute in dfa.path a_b_dfa [terminal.b;terminal.b;terminal.a;terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa [].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.a; terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.b; terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.a; terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa [terminal.b; terminal.b;terminal.a].
+  Eval vm_compute in dfa.path a_b_dfa [terminal.b;terminal.b;terminal.a;terminal.a].
   Definition xy := dfa.dfa_to_regular_grammar a_b_dfa.
-  Eval compute in reg_grammar.rules (xy).
-  Eval compute in reg_grammar.nonterminal_symbols xy.
+  Eval vm_compute in reg_grammar.rules (xy).
+  Eval vm_compute in reg_grammar.nonterminal_symbols xy.
 
   (* Automatically construct a DFA using the powerset construction. *)
   Check a_b_grammar.
   Definition a_b_dfa' := powerset_construction.build_dfa a_b_grammar.
-  Eval compute in dfa.states a_b_dfa'.
+  Eval vm_compute in dfa.states a_b_dfa'.
   Check a_b_dfa'.
-  Eval compute in reg_grammar.nonterminal_symbols a_b_grammar.
-  Eval compute in dfa.dfa_transitions_to_grammar_rules a_b_dfa'
+  Eval vm_compute in reg_grammar.nonterminal_symbols a_b_grammar.
+  Eval vm_compute in dfa.dfa_transitions_to_grammar_rules a_b_dfa'
   (dfa.states a_b_dfa') (dfa.alphabet a_b_dfa').
   Definition back_to_grammar := dfa.dfa_to_regular_grammar a_b_dfa'.
-  Eval compute in (reg_grammar.rules back_to_grammar).
+  Eval vm_compute in (reg_grammar.rules back_to_grammar).
 
   (* Examples running the second DFA. *)
-  Eval compute in dfa.run a_b_dfa' [].
-  Eval compute in dfa.run a_b_dfa' [terminal.a].
-  Eval compute in dfa.run a_b_dfa' [terminal.a; terminal.a].
-  Eval compute in dfa.run a_b_dfa' [terminal.b; terminal.b].
-  Eval compute in dfa.run a_b_dfa' [terminal.a; terminal.b].
-  Eval compute in dfa.run a_b_dfa' [terminal.a; terminal.b;terminal.b].
-  Eval compute in dfa.run a_b_dfa' [terminal.b; terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa' [].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.a; terminal.a].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.b; terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.a; terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.a; terminal.b;terminal.b].
+  Eval vm_compute in dfa.run a_b_dfa' [terminal.b; terminal.a].
 
   (*We can check if the automaton is a minimal automaton: *)
-  Eval compute in dfa.is_minimal a_b_dfa'.
-  Eval compute in dfa.states a_b_dfa'.
+  Eval vm_compute in dfa.is_minimal a_b_dfa'.
+  Eval vm_compute in dfa.states a_b_dfa'.
 
   (*We can build a NFA from the DFA given above :*)
 
@@ -147,30 +146,35 @@ Module non_terminal.
   Check nfa_from_dfa_a_b.
   Check a_b_dfa'.
 
-  Eval compute in nfa.run nfa_from_dfa_a_b [].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a;terminal.a;terminal.b;terminal.a].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.a].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.b; terminal.b].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b;terminal.b].
-  Eval compute in nfa.run nfa_from_dfa_a_b [terminal.b; terminal.a].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.a;terminal.a;terminal.b;terminal.a].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.a].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.b; terminal.b].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.a; terminal.b;terminal.b].
+  Eval vm_compute in nfa.run nfa_from_dfa_a_b [terminal.b; terminal.a].
 
-  (*and we have that they run recgonize the same language *)
-  Lemma nfa_from_dfa_a_b_good : forall l, dfa.run a_b_dfa l = nfa.run nfa_from_dfa_a_b l.
-  Proof.
-  apply dfa.dfa_to_nfa_sound.
-  Qed.
+  (* And from the grammar: *)
+  Definition nfa_from_grammar_ab := grammar_to_nfa.build_nfa_from_grammar a_b_grammar.
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.a;terminal.a;terminal.b;terminal.a].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.a; terminal.a].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.b; terminal.b].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.a; terminal.b].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.a; terminal.b;terminal.b].
+  Eval vm_compute in nfa.run nfa_from_grammar_ab [terminal.b; terminal.a].
+  Check nfa.next (nfa_from_grammar_ab).
 
   (* We can also build a grammar from the automaton given above: *)
   Definition a_b_grammar2 := dfa.dfa_to_regular_grammar a_b_dfa.
-  Eval compute in dfa.states a_b_dfa'.
-  Eval compute in dfa.alphabet a_b_dfa.
-  Eval compute in reg_grammar.rules a_b_grammar2.
+  Eval vm_compute in dfa.states a_b_dfa'.
+  Eval vm_compute in dfa.alphabet a_b_dfa.
+  Eval vm_compute in reg_grammar.rules a_b_grammar2.
 
-  Eval compute in reg_grammar.parse a_b_grammar2 [].
-  Eval compute in reg_grammar.parse a_b_grammar2 [terminal.a;terminal.b;terminal.a].
-  Eval compute in reg_grammar.parse a_b_grammar2 [terminal.b;terminal.b].
-  Eval compute in reg_grammar.parse a_b_grammar2 [terminal.a;terminal.b;terminal.b].
+  Eval vm_compute in reg_grammar.parse a_b_grammar2 [].
+  Eval vm_compute in reg_grammar.parse a_b_grammar2 [terminal.a;terminal.b;terminal.a].
+  Eval vm_compute in reg_grammar.parse a_b_grammar2 [terminal.b;terminal.b].
+  Eval vm_compute in reg_grammar.parse a_b_grammar2 [terminal.a;terminal.b;terminal.b].
 
   Inductive non_terminal1 := S| S1 | S2 | S3 |S4.
   Inductive terminal1 := a | b |c | d.
@@ -207,14 +211,14 @@ Module non_terminal.
 
   Definition grammar_example := reg_grammar.build_grammar S grammar_rules
      [a;b;c;d;a;b;c;c;c;d] [S;S1;S2;S3;S4].
-  Eval compute in reg_grammar.terminal_symbols grammar_example.
+  Eval vm_compute in reg_grammar.terminal_symbols grammar_example.
   Definition automata_example := powerset_construction.build_dfa grammar_example.
-  Eval compute in (dfa.states automata_example).
-  Eval compute in powerset_construction.power_states grammar_example.
+  Eval vm_compute in (dfa.states automata_example).
+  Eval vm_compute in powerset_construction.power_states grammar_example.
 
-  Eval compute in dfa.path automata_example [a;b;c;d].
-  Eval compute in dfa.run automata_example [a;b;b;c;d].
-  Eval compute in dfa.run automata_example [].
+  Eval vm_compute in dfa.path automata_example [].
+  Eval vm_compute in dfa.run automata_example [a;b;c;d].
+  Eval vm_compute in dfa.run automata_example [].
 
   Definition rules_example_2 : set (non_terminal1 * rhs.t terminal1 non_terminal1) :=
   [(S,Continue a S1);(S, Single a);(S,Continue b S2);(S1, Continue a S1);(S1,Continue c S3);(S2,Continue b S2);
@@ -225,23 +229,23 @@ Module non_terminal.
   Definition grammar_example_2 := reg_grammar.build_grammar S rules_example_2
     [b;c;a;d] [S;S1;S2;S3;S4].
   Definition automata_example_2 := powerset_construction.build_dfa grammar_example_2.
-  Eval compute in powerset_construction.power_states grammar_example_2.
-  Eval compute in dfa.states automata_example_2.
+  Eval vm_compute in powerset_construction.power_states grammar_example_2.
+  Eval vm_compute in dfa.states automata_example_2.
 
-  Eval compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
-  Eval compute in dfa.run automata_example_2 [a;c;c]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [a;c;c;b;d;d]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [b;d;d;a;b;c;c].    (*returns false*)
-  Eval compute in dfa.run automata_example_2 [b;b;b;b;b;b;b;d;d;a;c;c]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [b;d;d;a;c;c;b;d;d;b;d;d]. (*returns true*)
-  Eval compute in dfa.run automata_example_2 [a;a;a;a;a;a;a;c;c]. (*returns true *)
-  Eval compute in dfa.run automata_example_2 [b;a;d;a;c;c].  (*returns false*)
+  Eval vm_compute in dfa.run automata_example_2 [b;d;d]. (*returns true*)
+  Eval vm_compute in dfa.run automata_example_2 [b;d;d;c]. (*returns false*)
+  Eval vm_compute in dfa.run automata_example_2 [a;c;c]. (*returns true*)
+  Eval vm_compute in dfa.run automata_example_2 [a;c;c;b;d;d]. (*returns true*)
+  Eval vm_compute in dfa.run automata_example_2 [b;d;d;a;b;c;c].    (*returns false*)
+  Eval vm_compute in dfa.run automata_example_2 [b;b;b;b;b;b;b;d;d;a;c;c]. (*returns true*)
+  Eval vm_compute in dfa.run automata_example_2 [b;d;d;a;c;c;b;d;d;b;d;d]. (*returns true*)
+  Eval vm_compute in dfa.run automata_example_2 [a;a;a;a;a;a;a;c;c]. (*returns true *)
+  Eval vm_compute in dfa.run automata_example_2 [b;a;d;a;c;c].  (*returns false*)
 
   (* The above automaton is not minimal: *)
-  Eval compute in dfa.is_minimal automata_example_2.
+  Eval vm_compute in dfa.is_minimal automata_example_2.
   (* Then, the list of pairs of equivalent states is an empty list. *)
-  Eval compute in dfa.check_equivalent_states automata_example_2.
+  Eval vm_compute in dfa.check_equivalent_states automata_example_2.
 
   Definition grammar_rules2: set (non_terminal1 * rhs.t terminal1 non_terminal1) :=
     [(S1, Continue b S2);(S2, Continue c S3);(S3, Single d);
@@ -252,12 +256,12 @@ Module non_terminal.
     [a;b;c;d] [S;S1;S2;S3].
 
   Definition grammar_automaton := powerset_construction.build_dfa grammar.
-  Eval compute in dfa.run grammar_automaton [d;d;b;c;a].
-  Eval compute in dfa.path grammar_automaton [d;d;b;c;a].
-  Eval compute in dfa.run grammar_automaton [b].
-  Eval compute in dfa.path grammar_automaton [b].
-  Eval compute in dfa.states grammar_automaton.
-  Eval compute in dfa.is_minimal grammar_automaton.
+  Eval vm_compute in dfa.run grammar_automaton [d;d;b;c;a].
+  Eval vm_compute in dfa.path grammar_automaton [d;d;b;c;a].
+  Eval vm_compute in dfa.run grammar_automaton [b].
+  Eval vm_compute in dfa.path grammar_automaton [b].
+  Eval vm_compute in dfa.states grammar_automaton.
+  Eval vm_compute in dfa.is_minimal grammar_automaton.
 
   (* Example : grammmar that have aa or bb as a subword *)
   Definition grammar_aa_bb_rules := [(S, Continue b S); (S, Continue a S1);
@@ -267,20 +271,21 @@ Module non_terminal.
   Definition grammar_aa_bb := reg_grammar.build_grammar S grammar_aa_bb_rules
     [a;b] [S;S1;S2;S3].
 
-  Eval compute in reg_grammar.parse grammar_aa_bb [a;a].
-  Eval compute in reg_grammar.parse grammar_aa_bb [a;b;b].
-  Eval compute in reg_grammar.parse grammar_aa_bb [a;b].
+  Eval vm_compute in reg_grammar.parse grammar_aa_bb [a;a].
+  Eval vm_compute in reg_grammar.parse grammar_aa_bb [a;b;b].
+  Eval vm_compute in reg_grammar.parse grammar_aa_bb [a;b].
 
   Definition automata_aa_bb := powerset_construction.build_dfa grammar_aa_bb.
 
-  Eval compute in dfa.run automata_aa_bb  [a;b;a;a;a;b].
-  Eval compute in dfa.run2 automata_aa_bb [a;b;a;a;a;b].
-  Eval compute in dfa.path automata_aa_bb [a;b;a;a;a;b].
+  Eval vm_compute in dfa.run automata_aa_bb  [a;b;a;a;a;b].
+  Eval vm_compute in dfa.run2 automata_aa_bb [a;b;a;a;a;b].
+  Eval vm_compute in dfa.path automata_aa_bb [a;b;a;a;a;b].
+
 
  (* ---------------------------------------------------------------------------------- *)
  (* A hand-made NFA for the same language.                                            *)
 
-  Definition aa_bb_next (t:terminal1) (state : non_terminal1) : list non_terminal1 :=
+  Definition aa_bb_next (t:terminal1) (state : non_terminal1) : set non_terminal1 :=
   match state with
   | S => match t with
         | a => [S;S1]
@@ -322,34 +327,35 @@ Module non_terminal.
     nfa.states := [S;S1;S2;S3];
     nfa.alphabet := [a;b] |}.
 
-  Eval compute in powerset (nfa.states aa_bb_nfa).
+  Eval vm_compute in powerset (nfa.states aa_bb_nfa).
 
-  Eval compute in nfa.path aa_bb_nfa [a;a;b;a;a;a;a;a].
-  Eval compute in nfa.run aa_bb_nfa [a;a;b;a].
-  Eval compute in nfa.run aa_bb_nfa [b;a;b;b].
-  Eval compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;a].
-  Eval compute in nfa.run2 aa_bb_nfa [b;a;b;b;b;b;b;b;b].
-  Eval compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;b;b;b].
+  Eval vm_compute in nfa.path aa_bb_nfa [a;a;b;a;a;a;a;a].
+  Eval vm_compute in nfa.run aa_bb_nfa [a;b;a].
+  Eval vm_compute in nfa.run aa_bb_nfa [b;a;b;b].
+  Eval vm_compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;a].
+  Eval vm_compute in nfa.run2 aa_bb_nfa [b;a;b;b;b;b;b;b;b].
+  Eval vm_compute in nfa.path aa_bb_nfa [b;a;b;b;b;b;b;b;b].
 
+  Eval vm_compute in nfa.get_all_related_states aa_bb_nfa S.
   (*And we can build a DFA from the NFA defined above *)
 
   Definition aa_bb_dfa := nfa_to_dfa.build_dfa_from_nfa aa_bb_nfa.
   (* The set of states of the DFA built from a NFA *)
-  Eval compute in (dfa.states aa_bb_dfa).
-  Eval compute in (dfa.is_minimal aa_bb_dfa).
-  Eval compute in dfa.path aa_bb_dfa [a;a;a;a].
-  Eval compute in dfa.run aa_bb_dfa [a;a;a;a;b;b].
+  Eval vm_compute in (dfa.states aa_bb_dfa).
+  Eval vm_compute in (dfa.is_minimal aa_bb_dfa).
+  Eval vm_compute in dfa.path aa_bb_dfa [a;a;a;a].
+  Eval vm_compute in dfa.run aa_bb_dfa [a;a;a;a;b;b].
 
   (*NEW we can also build a grammar from the NFA defined above *)
   Definition aa_bb_grammar := nfa.build_grammar_from_nfa aa_bb_nfa.
-  Eval compute in reg_grammar.rules aa_bb_grammar.
-  Eval compute in reg_grammar.parse aa_bb_grammar [a;a;b;a;a;a;a;a].
+  Eval vm_compute in reg_grammar.rules aa_bb_grammar.
+  Eval vm_compute in reg_grammar.parse aa_bb_grammar [a;a;b;a;a;a;a;a].
 
   Definition test := [(S, Continue a S); (S, Single b)].
 
   Definition grammar4 := reg_grammar.build_grammar S test [a;b] [S].
 
-  Eval compute in reg_grammar.rules grammar4.
+  Eval vm_compute in reg_grammar.rules grammar4.
 
   Inductive naoterminal := A | B | C | D | E | F | G.
   Inductive terminal := x|y.
@@ -388,13 +394,13 @@ Module non_terminal.
 
   Definition automato_gramatica := powerset_construction.build_dfa gramática.
   
-  Eval compute in dfa.is_minimal automato_gramatica.
-  Eval compute in dfa.check_equivalent_states automato_gramatica.
-  Eval compute in dfa.path automato_gramatica [a].
+  Eval vm_compute in dfa.is_minimal automato_gramatica.
+  Eval vm_compute in dfa.check_equivalent_states automato_gramatica.
+  Eval vm_compute in dfa.path automato_gramatica [a].
 
-  Eval compute in dfa.run automato_gramatica [b;a;a;c].
-  Eval compute in dfa.path automato_gramatica [b;a;a;c].
-  Eval compute in dfa.run2 automato_gramatica [c].
+  Eval vm_compute in dfa.run automato_gramatica [b;a;a;c].
+  Eval vm_compute in dfa.path automato_gramatica [b;a;a;c].
+  Eval vm_compute in dfa.run2 automato_gramatica [c].
 
 
   (* an example of an automaton that is not minimal *)
@@ -480,9 +486,9 @@ Module non_terminal.
        dfa.states := [Some e.q0;Some e.q1;Some e.q2;Some e.q3;Some e.q4];
        dfa.alphabet := [e.b;e.a] |}.
 
-  Eval compute in dfa.run nonminimal_automaton [e.a;e.b;e.a].
-  Eval compute in dfa.is_minimal nonminimal_automaton.
-  Eval compute in dfa.check_equivalent_states nonminimal_automaton.
+  Eval vm_compute in dfa.run nonminimal_automaton [e.a;e.b;e.a].
+  Eval vm_compute in dfa.is_minimal nonminimal_automaton.
+  Eval vm_compute in dfa.check_equivalent_states nonminimal_automaton.
 
 (* Examples with NFA with epsilon transitions:                        *)
 Module nfa_e_test.
@@ -531,16 +537,17 @@ Inductive test := a | b | c.
   nfa_epsilon.states := [q0;q1;q2];
   nfa_epsilon.alphabet := [a;b;c] |}.
 
-  Eval compute in nfa_epsilon.epsilon_clos nfa_e q0. 
-  Eval compute in nfa_epsilon.epsilon_clos nfa_e q1.
-  Eval compute in nfa_epsilon.next_nfa nfa_e.
-
+  Eval vm_compute in nfa_epsilon.epsilon_clos nfa_e q0. 
+  Eval vm_compute in nfa_epsilon.epsilon_clos nfa_e q1.
+  Eval vm_compute in nfa_epsilon.next_nfa nfa_e.
+  
   (*We can convert the above NFA with epsilon transitions to one with no *)
   (* epsilon transitions                                                 *)
   Definition cool_nfa_e := nfa_epsilon.nfa_e_to_nfa nfa_e.
-  Eval compute in nfa.run cool_nfa_e [a;a;a;b;c].
-  Eval compute in nfa.run cool_nfa_e [c].
-
+  Check cool_nfa_e.
+  Eval vm_compute in nfa.run cool_nfa_e [a;a;a;b;c].
+  Eval vm_compute in nfa.run cool_nfa_e [c].
+  Eval vm_compute in nfa.get_all_related_states cool_nfa_e (nfa.initial_state cool_nfa_e).
   (* Another example:                                                    *)
   Definition next2 (state: test2): set (nfa_epsilon_transitions.ep_trans test2 test) :=
   match state with
@@ -560,24 +567,154 @@ Inductive test := a | b | c.
   nfa_epsilon.alphabet := [a;b;c] |}.
 
   Definition another_nfa_w_e := nfa_epsilon.nfa_e_to_nfa nfa_e2.
-  Eval compute in nfa_epsilon.next_nfa nfa_e2.
+  Eval vm_compute in nfa_epsilon.next_nfa nfa_e2.
 
   (*Another example *)
   Definition next3 (state: test2): set (nfa_epsilon_transitions.ep_trans test2 test) :=
   match state with
   | q0 => [Epsilon q1]
   | q1 => [Epsilon q0]
-  | q2 => []
+  | q2 => [Epsilon q0; Epsilon q1; Epsilon q2]
   end.
   (*NFA with only two epsilon transitions between two states *)
   Definition nfa_e3 := {|
   nfa_epsilon.initial_state := q0;
   nfa_epsilon.is_final := is_final2;
   nfa_epsilon.next := next3;
-  nfa_epsilon.states := [q0;q1];
+  nfa_epsilon.states := [q0;q1;q2];
   nfa_epsilon.alphabet := [a;b;c] |}.
 
-  Eval compute in nfa_epsilon.epsilon_clos nfa_e3 q1.
-  Eval compute in nfa_epsilon.next_nfa nfa_e3.
+  Eval vm_compute in nfa_epsilon.epsilon_clos nfa_e3 q1.
+  Eval vm_compute in nfa_epsilon.next_nfa nfa_e3.
+  Definition nfa_from_nfa_e3 := nfa_epsilon.nfa_e_to_nfa nfa_e3.
+  Eval compute in nfa.run2 nfa_from_nfa_e3 [a;b;c].
 End nfa_e_test.
+
+(* Modelling of Smart Cities entities as Cyber-Physical System by means of NFA *)
+Inductive cityEntities := 
+road | parkingPlace1 | parkingPlace2 | parkingPlace3
+| sensor1 | sensor2 | sensor3.
+
+Inductive entitiesRelation := contains | actsOn | has.
+
+Definition cityNFAnext (a:entitiesRelation) (s: cityEntities): set (cityEntities) :=
+  match s with
+  | road => match a with 
+            | contains => []
+            | actsOn => []
+            | has => [parkingPlace1;parkingPlace2;parkingPlace3]
+            end
+  | parkingPlace1 => match a with 
+            | contains => [sensor1]
+            | actsOn => []
+            | has => []
+            end
+  | parkingPlace2 => match a with 
+            | contains => [sensor2]
+            | actsOn => []
+            | has => []
+            end
+  | parkingPlace3 => match a with 
+            | contains => [sensor3]
+            | actsOn => []
+            | has => []
+            end
+  | sensor1 => match a with 
+            | contains => []
+            | actsOn => [parkingPlace1]
+            | has => []
+            end
+  | sensor2 => match a with 
+            | contains => []
+            | actsOn => [parkingPlace2]
+            | has => []
+            end
+  | sensor3 => match a with 
+            | contains => []
+            | actsOn => [parkingPlace3]
+            | has => []
+            end
+  end.
+
+Definition NFAfinal (s: cityEntities) : bool := true.
+
+Program Instance stateEqdec : EqDec cityEntities eq := 
+	{equiv_dec x y := 
+		match x, y with 
+		| road,road => in_left 
+		| parkingPlace1,parkingPlace1 => in_left 
+		| parkingPlace2,parkingPlace2 => in_left 
+		| parkingPlace3,parkingPlace3 => in_left 
+		| sensor1,sensor1 => in_left 
+		| sensor2,sensor2 => in_left 
+		| sensor3,sensor3 => in_left 
+		| road,parkingPlace1 => in_right 
+		| road,parkingPlace2 => in_right 
+		| road,parkingPlace3 => in_right 
+		| road,sensor1 => in_right 
+		| road,sensor2 => in_right 
+		| road,sensor3 => in_right 
+		| parkingPlace1,road => in_right 
+		| parkingPlace1,parkingPlace2 => in_right 
+		| parkingPlace1,parkingPlace3 => in_right 
+		| parkingPlace1,sensor1 => in_right 
+		| parkingPlace1,sensor2 => in_right 
+		| parkingPlace1,sensor3 => in_right 
+		| parkingPlace2,road => in_right 
+		| parkingPlace2,parkingPlace1 => in_right 
+		| parkingPlace2,parkingPlace3 => in_right 
+		| parkingPlace2,sensor1 => in_right 
+		| parkingPlace2,sensor2 => in_right 
+		| parkingPlace2,sensor3 => in_right 
+		| parkingPlace3,road => in_right 
+		| parkingPlace3,parkingPlace1 => in_right 
+		| parkingPlace3,parkingPlace2 => in_right 
+		| parkingPlace3,sensor1 => in_right 
+		| parkingPlace3,sensor2 => in_right 
+		| parkingPlace3,sensor3 => in_right 
+		| sensor1,road => in_right 
+		| sensor1,parkingPlace1 => in_right 
+		| sensor1,parkingPlace2 => in_right 
+		| sensor1,parkingPlace3 => in_right 
+		| sensor1,sensor2 => in_right 
+		| sensor1,sensor3 => in_right 
+		| sensor2,road => in_right 
+		| sensor2,parkingPlace1 => in_right 
+		| sensor2,parkingPlace2 => in_right 
+		| sensor2,parkingPlace3 => in_right 
+		| sensor2,sensor1 => in_right 
+		| sensor2,sensor3 => in_right 
+		| sensor3,road => in_right 
+		| sensor3,parkingPlace1 => in_right 
+		| sensor3,parkingPlace2 => in_right 
+		| sensor3,parkingPlace3 => in_right 
+		| sensor3,sensor1 => in_right 
+		| sensor3,sensor2 => in_right 
+		end 
+	}.
+Program Instance relationEqDec : EqDec entitiesRelation eq := 
+	{equiv_dec x y := 
+		match x, y with 
+		| contains,contains => in_left 
+		| has,has => in_left 
+		| actsOn,actsOn => in_left 
+		| contains,has => in_right 
+		| contains,actsOn => in_right 
+		| has,contains => in_right 
+		| has,actsOn => in_right 
+		| actsOn,contains => in_right 
+		| actsOn,has => in_right 
+		end 
+	}.
+Definition nfa := {|
+  nfa.initial_state := road;
+  nfa.is_final := NFAfinal;
+  nfa.next := cityNFAnext;
+  nfa.states := [road; parkingPlace1; parkingPlace2; parkingPlace3 ;sensor1; sensor2; sensor3];
+  nfa.alphabet := [contains; actsOn; has]
+  |}.
+
+Eval vm_compute in nfa.get_all_related_states nfa road.
+Lemma road_has_sensor1 : In (sensor1) (nfa.get_all_related_states nfa road).
+Proof. simpl;auto. Qed.
 

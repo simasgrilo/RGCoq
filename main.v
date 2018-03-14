@@ -193,7 +193,7 @@ Module reg_grammar.
 
   (* Given a nonterminal [nt], applies all possible rules,applying step_rhs on the             *)
   (* list of nonterminal symbols obtained by applying getRHS nt with the rules of the grammar  *)
-  (* Need to reimplement / use other flat_map? *)
+
   Definition step_nt (rules : set(NT * rhs.t T NT)) (t : T) (nt : NT) : set (option NT) :=
     rules |> getRHS nt  |> flat_map (step_rhs t).
 
@@ -203,7 +203,7 @@ Module reg_grammar.
   (*flat_map: returns 0 or more values for each application of the function in each list element.*)
   (*if applyable *)
   Definition step (rules : set (NT * rhs.t T NT)) (t : T) (acc : set NT) : set (option NT) :=
-    acc |> flat_map (step_nt rules t) |> nodup equiv_dec.
+    acc |> flat_map (step_nt rules t) |> nodup equiv_dec .
 
 
   (* The main parser loop. Repeatedly steps the current set of states using
@@ -244,14 +244,13 @@ Module reg_grammar.
    [Some (start_symbol grammar)] |> parse' (rules grammar) l.
 
   End reg_grammar.
-End reg_grammar. (*FAPERJ OK *)
+End reg_grammar. 
 
 (* Nondeterministic finite automata *)
 Module nfa.
   Section nfa.
     Variable (A ST : Type).
     Context  `{EqDec ST eq} `{EqDec A eq}.
-    (* S => ST *)
 
     Record t := NFA {
       initial_state : ST;
@@ -317,7 +316,7 @@ Module nfa.
   | a::t => set_union equiv_dec (nfa.next m a s) (expand_a_state m s t)
   end.
 
-  Fixpoint bounded_search (m:t) (n:nat) (x y: ST) :=
+  Program Fixpoint bounded_search (m:t) (n:nat) (x y: ST) :=
   match n with
   | O => if x == y then true else false
   | S k => if x == y then true else
@@ -519,7 +518,6 @@ EqDec (nfa_epsilon_transitions.ep_trans S A) eq :=
     end
 }.
 
-
 Module nfa_epsilon.
   Section nfa_epsilon.
   Variables A ST: Type.
@@ -634,7 +632,8 @@ Module nfa_epsilon.
   (* This function calculates the epsilon closure and extracs all transitions:   *)
   (* defined for a given symbol of the NFA's alphabet for every state in the     *)
   (* NFA's set of states                                                         *)
-  Definition next_nfa := next_from_epsilon_clos (nfa_epsilon.states m).
+  (* Definition next_nfa := next_from_epsilon_clos (nfa_epsilon.states m).       *)
+  Definition next_nfa := Eval vm_compute in (next_from_epsilon_clos (nfa_epsilon.states m)).
 
   (* The next step is to retrieve from the "next_nfa" function all states *)
   (* that has s as the outgoing state with a                              *)
@@ -974,7 +973,7 @@ Module powerset_construction.
     (reg_grammar.terminal_symbols g).
 
   End powerset_construction.
-End powerset_construction. (*FAPERJ OK*)
+End powerset_construction. 
 
 Require Export List.
 Export ListNotations.
